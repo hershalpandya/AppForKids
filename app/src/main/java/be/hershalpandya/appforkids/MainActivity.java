@@ -1,6 +1,13 @@
 package be.hershalpandya.appforkids;
 
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.text.InputType;
+import android.widget.EditText;
+import org.json.JSONArray;
+import org.json.JSONObject;
+import java.util.Locale;
+import java.util.UUID;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.Insets;
@@ -41,7 +48,7 @@ public final class MainActivity extends Activity {
         starInk = getColor(R.color.star_ink);
     }
 
-    private enum Screen { HOME, CATALOGUE, INSTRUCTIONS, ROUND, COMPLETE }
+    private enum Screen { CHOOSER, HOME, CATALOGUE, INSTRUCTIONS, ROUND, COMPLETE }
 
     private List<GameDefinition> games;
     private String previewMessage;
@@ -51,6 +58,16 @@ public final class MainActivity extends Activity {
     private GameRound round;
     private MatchingRound matchingRound;
     private ScrollView scroll;
+    private final List<Child> children = new ArrayList<>();
+    private Child selectedChild;
+    private boolean profilesDamaged;
+    private static final String PROFILES = "children";
+
+    private static final class Child {
+        final String id;
+        final String name;
+        Child(String id, String name) { this.id = id; this.name = name; }
+    }
 
     @Override
     protected void onCreate(Bundle savedState) {
@@ -66,11 +83,28 @@ public final class MainActivity extends Activity {
         }
 
         loadWorksheetPreview();
-
+        if (!BuildConfig.DEBUG) {
+            loadChildren();
+            screen = Screen.CHOOSER;
+        }
         if (savedState != null) {
-            restoreScreen(savedState);
+            if (BuildConfig.DEBUG) {
+                restoreScreen(savedState);
+            } else if (getLastNonConfigurationInstance() != null) {
+                String childId = savedState.getString("childId");
+                for (Child child : children) {
+                    if (child.id.equals(childId)) selectedChild = child;
+                }
+                if (selectedChild != null && !profilesDamaged) restoreScreen(savedState);
+            }
         }
         render();
+    }
+
+    @Override
+    public Object onRetainNonConfigurationInstance() {
+        // A configuration change can resume the round, but a fresh process starts at the chooser.
+        return Boolean.TRUE;
     }
 
     private void restoreScreen(Bundle state) {
@@ -125,6 +159,7 @@ public final class MainActivity extends Activity {
     protected void onSaveInstanceState(Bundle state) {
         super.onSaveInstanceState(state);
         state.putString("screen", screen.name());
+        if (selectedChild != null) state.putString("childId", selectedChild.id);
         state.putString("year", year);
         if (game != null) {
             state.putString("game", game.id);
@@ -145,8 +180,10 @@ public final class MainActivity extends Activity {
     @Override
     @SuppressWarnings("deprecation")
     public void onBackPressed() {
-        if (screen == Screen.HOME) {
+        if (screen == Screen.CHOOSER || (BuildConfig.DEBUG && screen == Screen.HOME)) {
             super.onBackPressed();
+        } else if (screen == Screen.HOME) {
+            changeChild();
         } else {
             show(screen == Screen.CATALOGUE ? Screen.HOME : Screen.CATALOGUE);
         }
@@ -199,7 +236,32 @@ public final class MainActivity extends Activity {
 
     private void render(boolean announceFeedback) {
         LinearLayout content = page();
+        if (!BuildConfig.DEBUG && selectedChild != null && screen != Screen.CHOOSER) {
+            body(content, "Pour " + selectedChild.name);
+            button(content, "Changer d’enfant", 20, false, this::changeChild);
+        }
         switch (screen) {
+            case CHOOSER:
+                heading(content, "Qui va jouer ?", 42);
+                body(content, "Les profils restent sur cet appareil. Effacer les données ou désinstaller l’application les supprime. Les sauvegardes et transferts dépendent de l’appareil.");
+                if (profilesDamaged) {
+                    body(content, "Impossible de lire les profils. Ferme et rouvre l’application. Les données n’ont pas été remplacées.");
+                    button(content, "Effacer les profils endommagés", 20, false, () -> parentCheck(() ->
+                            new AlertDialog.Builder(this).setTitle("Effacer tous les profils ?")
+                            .setMessage("Tous les profils et leur progression locale seront perdus.")
+                            .setNegativeButton("Annuler", null).setPositiveButton("Effacer", (d, w) -> {
+                                if (saveChildren(new ArrayList<>())) { profilesDamaged = false; render(); }
+                            }).show()));
+                    break;
+                }
+                if (children.isEmpty()) body(content, "Demande à un parent d’ajouter un enfant.");
+                for (Child child : children) {
+                    button(content, child.name, 30, true, () -> { selectedChild = child; show(Screen.HOME); });
+                    button(content, "Supprimer " + child.name, 18, false,
+                            () -> parentCheck(() -> confirmDeletion(child)));
+                }
+                button(content, "Ajouter un enfant", 24, false, () -> parentCheck(this::addChild));
+                break;
             case HOME:
                 heading(content, "À toi de jouer !", 42);
                 body(content, "Choisis ton année");
@@ -244,6 +306,118 @@ public final class MainActivity extends Activity {
                 catalogueButton(content);
                 break;
         }
+    }
+
+    private void changeChild() {
+        selectedChild = null;
+        game = null;
+        round = null;
+        matchingRound = null;
+        year = null;
+        show(Screen.CHOOSER);
+    }
+
+    private void loadChildren() {
+        try {
+            String data = getPreferences(MODE_PRIVATE).getString(PROFILES, "[]");
+            JSONArray list = new JSONArray(data);
+            for (int i = 0; i < list.length(); i++) {
+                JSONObject item = list.getJSONObject(i);
+                String id = item.getString("id");
+                String name = item.getString("name");
+                if (id.isEmpty() || name.isEmpty()) throw new JSONException("Invalid profile");
+                for (Child existing : children) {
+                    if (existing.id.equals(id) || existing.name.equalsIgnoreCase(name))
+                        throw new JSONException("Duplicate profile");
+                }
+                children.add(new Child(id, name));
+            }
+        } catch (JSONException | ClassCastException error) {
+            children.clear();
+            profilesDamaged = true;
+        }
+    }
+
+    private boolean saveChildren(List<Child> updated) {
+        JSONArray list = new JSONArray();
+        try {
+            for (Child child : updated) {
+                JSONObject item = new JSONObject();
+                item.put("id", child.id);
+                item.put("name", child.name);
+                list.put(item);
+            }
+        } catch (JSONException error) { return false; }
+        if (!getPreferences(MODE_PRIVATE).edit().putString(PROFILES, list.toString()).commit()) return false;
+        children.clear();
+        children.addAll(updated);
+        return true;
+    }
+
+    private void parentCheck(Runnable passed) {
+        EditText answer = new EditText(this);
+        answer.setInputType(InputType.TYPE_CLASS_NUMBER);
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Vérification pour les parents")
+                .setMessage("Combien font 7 + 5 ?").setView(answer)
+                .setNegativeButton("Annuler", null).setPositiveButton("Vérifier", null).create();
+        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            if (!answer.getText().toString().equals("12")) {
+                answer.setError("Essaie encore.");
+                return;
+            }
+            dialog.dismiss();
+            passed.run();
+        }));
+        dialog.show();
+    }
+
+    private boolean containsControl(String value) {
+        for (int i = 0; i < value.length(); i++) {
+            if (Character.isISOControl(value.charAt(i))) return true;
+        }
+        return false;
+    }
+
+    private void addChild() {
+        EditText name = new EditText(this);
+        name.setSingleLine(true);
+        name.setHint("Prénom ou surnom");
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Ajouter un enfant")
+                .setMessage("Un prénom ou surnom suffit.").setView(name)
+                .setNegativeButton("Annuler", null).setPositiveButton("Ajouter", null).create();
+        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            String value = name.getText().toString().trim();
+            if (value.isEmpty() || value.length() > 40 || containsControl(value)) {
+                name.setError("Saisis un nom de 1 à 40 caractères, sans caractères de contrôle.");
+                return;
+            }
+            for (Child child : children) {
+                if (child.name.toLowerCase(Locale.ROOT).equals(value.toLowerCase(Locale.ROOT))) {
+                    name.setError("Ce nom existe déjà. Choisis un autre surnom.");
+                    return;
+                }
+            }
+            List<Child> updated = new ArrayList<>(children);
+            updated.add(new Child(UUID.randomUUID().toString(), value));
+            if (!saveChildren(updated)) { name.setError("Enregistrement impossible. Réessaie."); return; }
+            dialog.dismiss();
+            render();
+        }));
+        dialog.show();
+    }
+
+    private void confirmDeletion(Child child) {
+        new AlertDialog.Builder(this).setTitle("Supprimer " + child.name + " ?")
+                .setMessage("Son profil et sa progression locale seront supprimés de cet appareil. Les autres enfants et les jeux restent disponibles.")
+                .setNegativeButton("Annuler", null).setPositiveButton("Supprimer", (dialog, which) -> {
+                    List<Child> updated = new ArrayList<>(children);
+                    updated.remove(child);
+                    if (!saveChildren(updated)) {
+                        new AlertDialog.Builder(this).setMessage("Suppression impossible. Réessaie.").setPositiveButton("OK", null).show();
+                        return;
+                    }
+                    render();
+                }).show();
     }
 
     private void yearButton(LinearLayout content, String selectedYear) {
