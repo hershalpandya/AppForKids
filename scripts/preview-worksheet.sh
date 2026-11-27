@@ -21,8 +21,9 @@ fi
 package=be.hershalpandya.appforkids.preview
 # Move the complete definition into place inside the preview app's private storage.
 install_draft='
-    temporary=$(mktemp worksheet-draft.XXXXXX) || exit 1
-    if ! cat > "$temporary" || ! mv "$temporary" worksheet-draft.json; then
+    mkdir -p files || exit 1
+    temporary=$(mktemp files/worksheet-draft.XXXXXX) || exit 1
+    if ! cat > "$temporary" || ! mv "$temporary" files/worksheet-draft.json; then
         rm -f "$temporary"
         exit 1
     fi
