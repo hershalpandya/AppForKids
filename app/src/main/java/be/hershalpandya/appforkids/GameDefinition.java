@@ -20,13 +20,16 @@ final class GameDefinition {
     final String objective;
     final String instructions;
     final String workedExample;
+    final String completionMessage;
     final List<Question> questions;
 
     static List<GameDefinition> loadCatalogue(AssetManager assets) throws IOException, JSONException {
         JSONArray entries = readJson(assets, "catalogue.json").getJSONArray("games");
         List<GameDefinition> games = new ArrayList<>();
         for (int i = 0; i < entries.length(); i++) {
-            games.add(new GameDefinition(readJson(assets, entries.getString(i))));
+            try (InputStream input = assets.open("games/" + entries.getString(i))) {
+                games.add(load(input));
+            }
         }
         return games;
     }
@@ -43,6 +46,7 @@ final class GameDefinition {
         objective = data.getString("objective");
         instructions = data.getString("instructions");
         workedExample = data.getString("workedExample");
+        completionMessage = data.optString("completionMessage", "Bravo, tu as répondu à toutes les questions.");
         JSONArray entries = data.getJSONArray("questions");
         questions = new ArrayList<>();
         for (int i = 0; i < entries.length(); i++) {
@@ -82,15 +86,23 @@ final class GameDefinition {
         return values;
     }
 
+    static GameDefinition load(InputStream input) throws IOException, JSONException {
+        return new GameDefinition(readJson(input));
+    }
+
     private static JSONObject readJson(AssetManager assets, String file) throws IOException, JSONException {
         try (InputStream input = assets.open("games/" + file)) {
-            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-            byte[] buffer = new byte[4096];
-            int count;
-            while ((count = input.read(buffer)) != -1) {
-                bytes.write(buffer, 0, count);
-            }
-            return new JSONObject(new String(bytes.toByteArray(), StandardCharsets.UTF_8));
+            return readJson(input);
         }
+    }
+
+    private static JSONObject readJson(InputStream input) throws IOException, JSONException {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        byte[] buffer = new byte[4096];
+        int count;
+        while ((count = input.read(buffer)) != -1) {
+            bytes.write(buffer, 0, count);
+        }
+        return new JSONObject(new String(bytes.toByteArray(), StandardCharsets.UTF_8));
     }
 }

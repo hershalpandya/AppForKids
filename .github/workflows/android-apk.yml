@@ -51,7 +51,7 @@ jobs:
           printf 'ANDROID_HOME=%s\nANDROID_SDK_ROOT=%s\n' "$ANDROID_HOME" "$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
           printf '%s\n' "$tools_dir" >> "$GITHUB_PATH"
 
-      - name: Build and verify CI-signed APK
+      - name: Build preview and verify CI-signed release APK
         run: |
           export APPFORKIDS_KEYSTORE="$RUNNER_TEMP/appforkids-ci.p12"
           export APPFORKIDS_KEY_ALIAS=appforkids-ci
@@ -60,7 +60,7 @@ jobs:
           keytool -genkeypair -keystore "$APPFORKIDS_KEYSTORE" -storetype PKCS12 \
             -storepass:env APPFORKIDS_STORE_PASSWORD -alias "$APPFORKIDS_KEY_ALIAS" \
             -keyalg RSA -keysize 2048 -validity 365 -dname 'CN=AppForKids CI'
-          ./gradlew --no-daemon :app:assembleRelease :app:lintRelease 2>&1 | tee build/ci/gradle.log
+          ./gradlew --no-daemon :app:assembleRelease :app:lintRelease :app:assembleDebug 2>&1 | tee build/ci/gradle.log
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify app/build/outputs/apk/release/app-release.apk
 
       - name: Enable KVM for the hosted runner
@@ -69,8 +69,11 @@ jobs:
           sudo chmod a+rw /dev/kvm
           "$ANDROID_HOME/emulator/emulator" -accel-check
 
-      - name: Install the APK on an offline tablet and play a round
-        run: bash scripts/test-apk-on-emulator.sh app/build/outputs/apk/release/app-release.apk
+      - name: Play the starter and worksheet preview on an offline tablet
+        run: |
+          bash scripts/test-apk-on-emulator.sh \
+            app/build/outputs/apk/release/app-release.apk \
+            app/build/outputs/apk/debug/app-debug.apk
 
       - name: Upload tested APK
         uses: actions/upload-artifact@v4

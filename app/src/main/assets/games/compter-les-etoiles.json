@@ -8,6 +8,7 @@
   "objective": "Compte des groupes de 1 à 10 étoiles.",
   "instructions": "Compte les étoiles. Touche le bon nombre.",
   "workedExample": "Exemple : ★ ★ ★ = 3",
+  "completionMessage": "Bravo, tu as compté tous les groupes d’étoiles.",
   "questions": [
     {
       "prompt": "Combien d’étoiles ?",

@@ -2,6 +2,10 @@
 
 AppForKids débute avec **Les étoiles à compter**, un jeu hors ligne pour les enfants de P1. Le jeu utilise trois exercices originaux de dénombrement. Les questions et les réponses se trouvent dans [la fiche du jeu](app/src/main/assets/games/compter-les-etoiles.json).
 
+## Preview a worksheet game
+
+In Codex, attach redacted worksheet pages and use `$worksheet-to-game` with the year, learning goal and teaching constraints. The agent prepares the draft and opens it on an Android emulator for your review. See the [P1 worksheet workflow](docs/p1-worksheet-preview.md) for a sample request and correction.
+
 ## Build the family APK
 
 Install JDK 17 and the Android SDK command-line tools. Set `JAVA_HOME` and `ANDROID_HOME` to their installation directories. From the repository root, install the SDK components and accept the Android SDK licences.

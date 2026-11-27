@@ -21,7 +21,9 @@ import android.widget.TextView;
 
 import org.json.JSONException;
 
+import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
 
 public final class MainActivity extends Activity {
@@ -35,6 +37,7 @@ public final class MainActivity extends Activity {
     private enum Screen { HOME, CATALOGUE, INSTRUCTIONS, ROUND, COMPLETE }
 
     private List<GameDefinition> games;
+    private String previewMessage;
     private Screen screen = Screen.HOME;
     private String year;
     private GameDefinition game;
@@ -52,6 +55,8 @@ public final class MainActivity extends Activity {
             heading(page(), "Les jeux ne sont pas disponibles.", 28);
             return;
         }
+
+        loadWorksheetPreview();
 
         if (savedState != null) {
             screen = Screen.valueOf(savedState.getString("screen", Screen.HOME.name()));
@@ -96,6 +101,34 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private void loadWorksheetPreview() {
+        if (!BuildConfig.DEBUG) {
+            return;
+        }
+
+        previewMessage = "Aperçu du brouillon";
+        File draft = getFileStreamPath("worksheet-draft.json");
+        if (!draft.exists()) {
+            return;
+        }
+
+        try (InputStream input = openFileInput(draft.getName())) {
+            GameDefinition candidate = GameDefinition.load(input);
+            if (!candidate.year.equals("P1")) {
+                throw new JSONException("The preview currently supports P1 games");
+            }
+            for (int index = 0; index < games.size(); index++) {
+                if (games.get(index).id.equals(candidate.id)) {
+                    games.set(index, candidate);
+                    return;
+                }
+            }
+            games.add(candidate);
+        } catch (IOException | JSONException error) {
+            previewMessage = "Impossible d’ouvrir le brouillon P1.";
+        }
+    }
+
     private void configureSystemBars() {
         if (Build.VERSION.SDK_INT >= 30) {
             getWindow().setDecorFitsSystemWindows(false);
@@ -120,6 +153,9 @@ public final class MainActivity extends Activity {
         LinearLayout content = page();
         switch (screen) {
             case HOME:
+                if (BuildConfig.DEBUG) {
+                    body(content, previewMessage);
+                }
                 heading(content, "À toi de jouer !", 42);
                 body(content, "Choisis ton année");
                 button(content, "P1", 32, true, () -> {
@@ -155,7 +191,7 @@ public final class MainActivity extends Activity {
                 break;
             case COMPLETE:
                 heading(content, "Partie terminée !", 42);
-                body(content, "Bravo, tu as compté tous les groupes d’étoiles.");
+                body(content, game.completionMessage);
                 button(content, "Rejouer", 26, true, this::startRound);
                 catalogueButton(content);
                 break;
@@ -174,9 +210,9 @@ public final class MainActivity extends Activity {
         heading(content, question.prompt, 34);
         LinearLayout visual = card(content, PALE_YELLOW);
         for (String row : question.visualRows) {
-            TextView stars = text(row, 38, STAR);
-            stars.setGravity(Gravity.CENTER);
-            visual.addView(stars);
+            TextView symbols = text(row, 38, STAR);
+            symbols.setGravity(Gravity.CENTER);
+            visual.addView(symbols);
         }
 
         if (!round.isAnswered()) {
