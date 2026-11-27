@@ -62,6 +62,7 @@ public final class MainActivity extends Activity {
     private Child selectedChild;
     private boolean profilesDamaged;
     private static final String PROFILES = "children";
+    private static final String RESULTS = "results";
 
     private static final class Child {
         final String id;
@@ -250,7 +251,7 @@ public final class MainActivity extends Activity {
                             new AlertDialog.Builder(this).setTitle("Effacer tous les profils ?")
                             .setMessage("Tous les profils et leur progression locale seront perdus.")
                             .setNegativeButton("Annuler", null).setPositiveButton("Effacer", (d, w) -> {
-                                if (saveChildren(new ArrayList<>())) { profilesDamaged = false; render(); }
+                                if (saveChildren(new ArrayList<>(), new JSONObject())) { profilesDamaged = false; render(); }
                             }).show()));
                     break;
                 }
@@ -264,6 +265,7 @@ public final class MainActivity extends Activity {
                 break;
             case HOME:
                 heading(content, "À toi de jouer !", 42);
+                button(content, "Réinitialiser les résultats", 20, false, () -> parentCheck(this::confirmReset));
                 body(content, "Choisis ton année");
                 yearButton(content, "P1");
                 yearButton(content, "P3");
@@ -274,6 +276,7 @@ public final class MainActivity extends Activity {
                     if (entry.year.equals(year)) {
                         LinearLayout card = card(content, Color.WHITE);
                         body(card, entry.objective);
+                        showResult(card, entry);
                         button(card, entry.title, 26, true, () -> {
                             game = entry;
                             round = null;
@@ -339,6 +342,10 @@ public final class MainActivity extends Activity {
     }
 
     private boolean saveChildren(List<Child> updated) {
+        return saveChildren(updated, null);
+    }
+
+    private boolean saveChildren(List<Child> updated, JSONObject results) {
         JSONArray list = new JSONArray();
         try {
             for (Child child : updated) {
@@ -348,7 +355,9 @@ public final class MainActivity extends Activity {
                 list.put(item);
             }
         } catch (JSONException error) { return false; }
-        if (!getPreferences(MODE_PRIVATE).edit().putString(PROFILES, list.toString()).commit()) return false;
+        android.content.SharedPreferences.Editor editor = getPreferences(MODE_PRIVATE).edit().putString(PROFILES, list.toString());
+        if (results != null) editor.putString(RESULTS, results.toString());
+        if (!editor.commit()) return false;
         children.clear();
         children.addAll(updated);
         return true;
@@ -412,11 +421,93 @@ public final class MainActivity extends Activity {
                 .setNegativeButton("Annuler", null).setPositiveButton("Supprimer", (dialog, which) -> {
                     List<Child> updated = new ArrayList<>(children);
                     updated.remove(child);
-                    if (!saveChildren(updated)) {
+                    JSONObject results = readResults();
+                    if (results == null) {
+                        new AlertDialog.Builder(this).setMessage("Impossible de lire les résultats. Réessaie.").setPositiveButton("OK", null).show();
+                        return;
+                    }
+                    results.remove(child.id);
+                    if (!saveChildren(updated, results)) {
                         new AlertDialog.Builder(this).setMessage("Suppression impossible. Réessaie.").setPositiveButton("OK", null).show();
                         return;
                     }
                     render();
+                }).show();
+    }
+
+    // Results are keyed by opaque profile and game IDs; a result is never written during play.
+    private JSONObject readResults() {
+        try {
+            JSONObject results = new JSONObject(getPreferences(MODE_PRIVATE).getString(RESULTS, "{}"));
+            java.util.Iterator<String> children = results.keys();
+            while (children.hasNext()) {
+                JSONObject games = results.getJSONObject(children.next());
+                java.util.Iterator<String> ids = games.keys();
+                while (ids.hasNext()) {
+                    JSONObject result = games.getJSONObject(ids.next());
+                    if (result.getInt("revision") < 1 || result.getInt("count") < 1)
+                        throw new JSONException("Invalid result");
+                }
+            }
+            return results;
+        } catch (JSONException | ClassCastException error) { return null; }
+    }
+
+    private void showResult(LinearLayout card, GameDefinition entry) {
+        if (selectedChild == null) return; // Worksheet preview has no profile or progress.
+        JSONObject results = readResults();
+        if (results == null) {
+            body(card, "Impossible de lire les résultats enregistrés.");
+            return;
+        }
+        JSONObject child = results.optJSONObject(selectedChild.id);
+        JSONObject result = child == null ? null : child.optJSONObject(entry.id);
+        if (result != null) {
+            body(card, result.optInt("revision") == entry.revision
+                    ? "★ Jeu terminé" : "★ Ancienne version terminée");
+        }
+    }
+
+    private void finishRound() {
+        if (selectedChild == null) { show(Screen.COMPLETE); return; }
+        JSONObject results = readResults();
+        if (results != null) {
+            try {
+                JSONObject child = results.optJSONObject(selectedChild.id);
+                if (child == null) { child = new JSONObject(); results.put(selectedChild.id, child); }
+                JSONObject old = child.optJSONObject(game.id);
+                int count = game.type == GameDefinition.Type.MATCHING ? matchingRound.matchedCount() : round.questionCount();
+                if (old == null || old.getInt("revision") != game.revision || count > old.getInt("count")) {
+                    JSONObject result = new JSONObject();
+                    result.put("revision", game.revision);
+                    result.put("count", count);
+                    child.put(game.id, result);
+                }
+                if (getPreferences(MODE_PRIVATE).edit().putString(RESULTS, results.toString()).commit()) {
+                    show(Screen.COMPLETE);
+                    return;
+                }
+            } catch (JSONException ignored) { }
+        }
+        new AlertDialog.Builder(this).setMessage("Impossible d’enregistrer le résultat. Réessaie.")
+                .setPositiveButton("OK", null).show();
+    }
+
+    private void confirmReset() {
+        Child child = selectedChild;
+        new AlertDialog.Builder(this).setTitle("Réinitialiser les résultats de " + child.name + " ?")
+                .setMessage("Tous ses résultats enregistrés seront effacés. Les autres enfants et les jeux restent disponibles.")
+                .setNegativeButton("Annuler", null).setPositiveButton("Réinitialiser", (dialog, which) -> {
+                    JSONObject results = readResults();
+                    if (results != null) {
+                        results.remove(child.id);
+                        if (getPreferences(MODE_PRIVATE).edit().putString(RESULTS, results.toString()).commit()) {
+                            render();
+                            return;
+                        }
+                    }
+                    new AlertDialog.Builder(this).setMessage("Réinitialisation impossible. Réessaie.")
+                            .setPositiveButton("OK", null).show();
                 }).show();
     }
 
@@ -468,7 +559,7 @@ public final class MainActivity extends Activity {
         renderFeedback(content, round.feedbackMessage(), announceFeedback);
         if (round.isAnswered()) {
             button(content, round.isLastQuestion() ? "Terminer" : "Suivant", 26, true,
-                    () -> show(round.advanceToNextQuestion() ? Screen.ROUND : Screen.COMPLETE));
+                    () -> { if (round.advanceToNextQuestion()) show(Screen.ROUND); else finishRound(); });
         }
         catalogueButton(content);
     }
@@ -508,7 +599,7 @@ public final class MainActivity extends Activity {
             }
             feedbackCard = card(content, palePurple);
             feedback = body(feedbackCard, "");
-            finish = makeButton("Terminer", 26, true, () -> show(Screen.COMPLETE));
+            finish = makeButton("Terminer", 26, true, MainActivity.this::finishRound);
             add(content, finish, 12);
             catalogueButton(content);
             refresh();
