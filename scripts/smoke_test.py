@@ -19,7 +19,7 @@ def adb(*arguments, check=True):
     )
 
 
-def visible(text, package=PACKAGE):
+def visible_matches(text, package=PACKAGE):
     deadline = time.monotonic() + 20
     last_labels = []
     while time.monotonic() < deadline:
@@ -33,12 +33,19 @@ def visible(text, package=PACKAGE):
                     for node in ET.fromstring(result.stdout).iter("node")
                     if node.get("package") == package
                 ]
-                for node in nodes:
-                    if node.get("text") == text and node.get("enabled") == "true":
-                        return node
+                matches = [
+                    node for node in nodes
+                    if node.get("text") == text and node.get("enabled") == "true"
+                ]
+                if matches:
+                    return matches
                 last_labels = [node.get("text") for node in nodes if node.get("text")]
         time.sleep(0.5)
     raise AssertionError(f"Expected visible text {text!r}. Last app labels: {last_labels!r}")
+
+
+def visible(text, package=PACKAGE):
+    return visible_matches(text, package)[0]
 
 
 def tap(text, package=PACKAGE):
