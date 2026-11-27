@@ -153,7 +153,19 @@ For a first setup, install the family baseline from Files and open both starters
 
 After the update, turn on airplane mode and make sure Wi-Fi is off. Close and reopen **AppForKids**. Check that the new activity card appears once under its intended year and play it to the end with the approved answer key. For the sample, open **Les rangées à comparer** under **P1** and answer **En haut** then **En bas**. Play **Les étoiles à compter** through one round. Use **Changer d’année**, choose **P3** and play **Les mots de même sens** through one round. Try a mistake and retry in each starter. If you selected other approved activities to retain, check that each appears under its year and opens offline. Check that the text and buttons are comfortable to use on the actual tablet.
 
-The physical tablet check for the sample is pending manual verification. Record first installation and in-place update separately with the date, tablet model, Android version, both APK version codes, verified titles by year, airplane-mode result and any model-specific USB or installer steps you observed. Add the result to the physical check record in [issue #6](https://github.com/hershalpandya/AppForKids/issues/6). [First installation ticket](https://github.com/hershalpandya/AppForKids/issues/2) · [Android APK testing notes](wiki/android-apk-testing.md)
+### Physical tablet verification record
+
+On 2026-11-27, a Samsung SM-T500 running Android 12 installed the original family APK at version code 1 and opened **Les étoiles à compter**. The family-signed version 2 installed over it, and Android reported the same first installation time. In airplane mode with Wi-Fi off, **Les rangées à comparer** and **Les étoiles à compter** completed under **P1**, and **Les mots de même sens** completed under **P3**. The check exercised wrong answers and retry feedback in all three games.
+
+On this Samsung tablet, **File transfer** let the Mac see the device. ADB also needed **USB debugging** in Developer options and approval of the USB prompt. The streamed ADB install timed out. Copying the APK to the tablet before invoking the package installer worked for the first install and update. With the tablet authorized over USB, the update command was:
+
+```bash
+adb -s TABLET_SERIAL push "$family_update_apk" /data/local/tmp/appforkids-update.apk
+adb -s TABLET_SERIAL shell pm install --user 0 -r /data/local/tmp/appforkids-update.apk
+adb -s TABLET_SERIAL shell rm /data/local/tmp/appforkids-update.apk
+```
+
+Replace `TABLET_SERIAL` with the serial from `adb devices`. The first install used the original APK and omitted `-r`. For future checks, record the tablet model, Android version, APK version codes, game titles by year, offline result and any device-specific steps. [Samsung Developer options instructions](https://www.samsung.com/uk/support/mobile-devices/how-do-i-turn-on-developer-options-menu-on-my-samsung-galaxy-device/) · [Handoff ticket](https://github.com/hershalpandya/AppForKids/issues/6) · [Android APK testing notes](wiki/android-apk-testing.md)
 
 ## Rehearse the signed update on a clean emulator
 

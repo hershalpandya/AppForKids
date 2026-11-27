@@ -1,0 +1,5 @@
+# Parent handoff
+
+On 2026-11-27, `hershalpandya/AppForKids@6ced19f` added the two-page synthetic rehearsal **Les rangées à comparer**. A parent clarification about a sixth counter changed the second question under the same game ID. Both revisions played in preview. An invalid answer in a private trial failed validation, and the corrected revision was approved. [Sample review](../samples/parent-handoff/review.md) · [Ticket #6](https://github.com/hershalpandya/AppForKids/issues/6)
+
+On 2026-11-27, the original family-signed APK and the update installed on a Samsung SM-T500 running Android 12. Android kept the first installation time from version code 1 after updating to version code 2. All three games ran to completion in airplane mode with Wi-Fi off. The tablet accepted the APK after it was copied over USB and installed with Android’s package manager. [Device procedure and test record](../parent-handoff.md#physical-tablet-verification-record) · [Android APK testing](android-apk-testing.md)

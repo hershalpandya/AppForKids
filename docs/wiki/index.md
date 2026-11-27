@@ -3,6 +3,7 @@
 ## Releases and testing
 
 - [Android APK testing](android-apk-testing.md) records the project’s decisions about emulator tests and family tablet checks.
+- [Parent handoff](parent-handoff.md) records the reviewed sample and family tablet installation.
 
 ## Games
 
