@@ -112,14 +112,14 @@ jobs:
             build/ci/app-release-update.apk
 
       - name: Upload tested starter APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: appforkids-ci-tested-apk
           path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
 
       - name: Upload tested update APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: appforkids-ci-tested-update-apk
           path: build/ci/app-release-update.apk
@@ -127,7 +127,7 @@ jobs:
 
       - name: Upload failure diagnostics
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: android-failure-diagnostics
           path: |
