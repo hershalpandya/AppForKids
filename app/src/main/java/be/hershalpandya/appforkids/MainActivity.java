@@ -14,6 +14,7 @@ import android.graphics.Insets;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.RippleDrawable;
+import android.graphics.drawable.StateListDrawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
@@ -23,6 +24,7 @@ import android.view.WindowInsets;
 import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
+import android.widget.ImageView;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
@@ -35,12 +37,16 @@ import java.util.ArrayList;
 import java.util.List;
 
 public final class MainActivity extends Activity {
-    private static final int PAPER = 0xfff8f5ed;
-    private static final int INK = 0xff20283d;
-    private static final int BLUE = 0xff2257a5;
-    private static final int PALE_BLUE = 0xffe9f0ff;
-    private static final int PALE_YELLOW = 0xffffedb0;
-    private static final int STAR = 0xff7e4503;
+    private int paper, ink, primary, palePurple, paleGreen, starInk;
+
+    private void loadDesignColors() {
+        paper = getColor(R.color.surface);
+        ink = getColor(R.color.text_primary);
+        primary = getColor(R.color.primary);
+        palePurple = getColor(R.color.primary_light);
+        paleGreen = getColor(R.color.instruction_surface);
+        starInk = getColor(R.color.star_ink);
+    }
 
     private enum Screen { CHOOSER, HOME, CATALOGUE, INSTRUCTIONS, ROUND, COMPLETE }
 
@@ -66,6 +72,7 @@ public final class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedState) {
         super.onCreate(savedState);
+        loadDesignColors();
         configureSystemBars();
         try {
             games = GameDefinition.loadCatalogue(getAssets());
@@ -213,8 +220,8 @@ public final class MainActivity extends Activity {
             getWindow().setStatusBarColor(Color.TRANSPARENT);
             getWindow().setNavigationBarColor(Color.TRANSPARENT);
         } else {
-            getWindow().setStatusBarColor(PAPER);
-            getWindow().setNavigationBarColor(Build.VERSION.SDK_INT >= 27 ? PAPER : INK);
+            getWindow().setStatusBarColor(paper);
+            getWindow().setNavigationBarColor(Build.VERSION.SDK_INT >= 27 ? paper : ink);
         }
     }
 
@@ -256,9 +263,6 @@ public final class MainActivity extends Activity {
                 button(content, "Ajouter un enfant", 24, false, () -> parentCheck(this::addChild));
                 break;
             case HOME:
-                if (BuildConfig.DEBUG) {
-                    body(content, previewMessage);
-                }
                 heading(content, "À toi de jouer !", 42);
                 body(content, "Choisis ton année");
                 yearButton(content, "P1");
@@ -283,7 +287,7 @@ public final class MainActivity extends Activity {
                 break;
             case INSTRUCTIONS:
                 heading(content, game.title, 38);
-                LinearLayout example = card(content, PALE_YELLOW);
+                LinearLayout example = card(content, paleGreen);
                 body(example, game.instructions);
                 heading(example, game.workedExample, 28);
                 button(content, "Jouer", 26, true, this::startRound);
@@ -438,9 +442,9 @@ public final class MainActivity extends Activity {
         body(content, getString(R.string.question_progress,
                 round.questionIndex() + 1, round.questionCount()));
         heading(content, question.prompt, 34);
-        LinearLayout visual = card(content, PALE_YELLOW);
+        LinearLayout visual = card(content, paleGreen);
         for (String row : question.visualRows) {
-            TextView symbols = text(row, 38, STAR);
+            TextView symbols = text(row, 38, starInk);
             symbols.setGravity(Gravity.CENTER);
             visual.addView(symbols);
         }
@@ -503,7 +507,7 @@ public final class MainActivity extends Activity {
                         () -> match(rightIndex));
                 add(right, rightTiles[rightIndex], 8);
             }
-            feedbackCard = card(content, PALE_BLUE);
+            feedbackCard = card(content, palePurple);
             feedback = body(feedbackCard, "");
             finish = makeButton("Terminer", 26, true, () -> show(Screen.COMPLETE));
             add(content, finish, 12);
@@ -587,7 +591,7 @@ public final class MainActivity extends Activity {
 
     private void renderFeedback(LinearLayout content, String message, boolean announceFeedback) {
         if (message != null) {
-            body(card(content, PALE_BLUE), message);
+            body(card(content, palePurple), message);
             if (announceFeedback) {
                 scroll.announceForAccessibility(message);
             }
@@ -600,7 +604,7 @@ public final class MainActivity extends Activity {
 
     private LinearLayout page() {
         scroll = new ScrollView(this);
-        scroll.setBackgroundColor(PAPER);
+        scroll.setBackgroundColor(paper);
         scroll.setFillViewport(true);
         if (Build.VERSION.SDK_INT >= 30) {
             scroll.setOnApplyWindowInsetsListener((view, insets) -> {
@@ -619,6 +623,17 @@ public final class MainActivity extends Activity {
         int width = Math.min(getResources().getConfiguration().screenWidthDp, 720);
         frame.addView(content, new FrameLayout.LayoutParams(dp(width), -2, Gravity.CENTER_HORIZONTAL));
         setContentView(scroll);
+        ImageView landscape = new ImageView(this);
+        landscape.setImageResource(R.drawable.petits_pas_landscape);
+        landscape.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        landscape.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        content.addView(landscape, new LinearLayout.LayoutParams(-1, dp(56)));
+        TextView identity = text(getString(R.string.app_name), 20, primary);
+        identity.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        add(content, identity, 4);
+        if (BuildConfig.DEBUG) {
+            body(content, previewMessage);
+        }
         return content;
     }
 
@@ -632,7 +647,7 @@ public final class MainActivity extends Activity {
     }
 
     private void heading(LinearLayout parent, String label, int size) {
-        TextView heading = text(label, size, INK);
+        TextView heading = text(label, size, ink);
         heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         if (Build.VERSION.SDK_INT >= 28) {
             heading.setAccessibilityHeading(true);
@@ -641,7 +656,7 @@ public final class MainActivity extends Activity {
     }
 
     private TextView body(LinearLayout parent, String label) {
-        TextView body = text(label, 22, INK);
+        TextView body = text(label, 22, ink);
         add(parent, body, 4);
         return body;
     }
@@ -671,10 +686,19 @@ public final class MainActivity extends Activity {
     }
 
     private void styleButton(Button button, boolean main) {
-        button.setTextColor(main ? Color.WHITE : BLUE);
-        int ripple = main ? 0x55ffffff : 0x332257a5;
-        button.setBackground(new RippleDrawable(
-                ColorStateList.valueOf(ripple), rounded(main ? BLUE : PALE_BLUE, 18), null));
+        button.setTextColor(new ColorStateList(
+                new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}},
+                new int[]{ink, main ? Color.WHITE : primary}));
+        int ripple = main ? 0x55ffffff : 0x335630a5;
+        StateListDrawable states = new StateListDrawable();
+        GradientDrawable disabled = rounded(0xffe2e5eb, 18);
+        disabled.setStroke(dp(2), 0xff737c8f);
+        states.addState(new int[]{-android.R.attr.state_enabled}, disabled);
+        GradientDrawable focused = rounded(main ? primary : palePurple, 18);
+        focused.setStroke(dp(3), main ? Color.WHITE : primary);
+        states.addState(new int[]{android.R.attr.state_focused}, focused);
+        states.addState(new int[]{}, rounded(main ? primary : palePurple, 18));
+        button.setBackground(new RippleDrawable(ColorStateList.valueOf(ripple), states, null));
     }
 
     private GradientDrawable rounded(int color, int radius) {

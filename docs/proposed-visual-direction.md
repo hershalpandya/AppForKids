@@ -1,16 +1,16 @@
 # Petits Pas: visual direction and design proposal
 
-**Status: the name and broad visual direction are chosen; design details remain proposals for family review.** This is the shared design source proposed for [#23](https://github.com/hershalpandya/AppForKids/issues/23), within the planning scope of [#22](https://github.com/hershalpandya/AppForKids/issues/22). No redesign or change to game content is authorized by this document. Record further decisions here and create focused implementation issues after the remaining design details are agreed.
+**Status: implemented direction, pending physical-tablet review.** The family chose Petits Pas, direction C (blue, purple and green), illustrations throughout, and the separate preview label **Petits Pas · Aperçu** on 27 November 2026. Exact colors remain subject to tablet review. This document and the Android resources are the shared source for the family and preview builds. A preliminary web check on 2026-11-27 found an unrelated [Petits Pas Android app](https://play.google.com/store/apps/details?id=com.petitspas.app) and [Pathstone : Petits pas](https://apps.apple.com/fr/app/pathstone-petits-pas/id6804307935) for children. This is not a trademark search or clearance; assess naming before broader distribution.
 
 ## Name and feeling
 
-On 2026-11-27, the family chose **Petits Pas** as the app name and asked for a **brighter, more colorful** style. The family also chose to show all games with optional year, subject and topic filters; the catalogue layout remains open. These are user choices, not yet an implemented redesign. Check possible name conflicts before adoption; this is not a clearance claim. The preview label and whether the app needs a logo remain open; **Petits Pas · Aperçu** is one candidate, not a decision.
+On 2026-11-27, the family chose **Petits Pas** as the app name and asked for a **brighter, more colorful** style. The family also chose to show all games with optional year, subject and topic filters; the catalogue layout remains open. These are user choices, not yet an implemented redesign. Check possible name conflicts before adoption; this is not a clearance claim. The separate preview is labelled **Petits Pas · Aperçu**.
 
-Explore a cheerful, colorful workspace using multiple distinct accents, clear light surfaces and recognizable shapes. Color should support the activity without obscuring the worksheet task or implying an answer. Candidate illustrations could use flat, rounded shapes and consistent line weight, sparingly in navigation or completion and never as a replacement for instructional text. Their use and style need family review. Counting objects must remain distinct and countable; avoid decorative motion that distracts from play.
+Explore a cheerful, colorful workspace using multiple distinct accents, clear light surfaces and recognizable shapes. Color should support the activity without obscuring the worksheet task or implying an answer. Use flat, rounded decorative illustrations throughout, separate from instructional text and answer cues. Counting objects must remain distinct and countable; avoid decorative motion that distracts from play.
 
 ## Shared design source and candidate tokens
 
-This document is the proposed human-readable source of intent. Once agreed, give each token a semantic name and implement it in shared Android theme/color, typography and component resources used by the family and preview builds. Activity code should consume those resources rather than independently inventing values; game definitions remain content, not an additional theme. Review changes to this document and executable resources together. Existing `styles.xml` and activity-level styling currently split those responsibilities; this proposal changes neither.
+This document is the human-readable source of intent. Both builds consume the same `app/src/main/res/values/colors.xml`, theme, illustration and activity components; only the preview app name is overridden in debug resources. Game definitions remain content, not an additional theme. Review changes here and in executable resources together.
 
 | Role | Example direction to explore | Intended use |
 | --- | --- | --- |
@@ -20,7 +20,7 @@ This document is the proposed human-readable source of intent. Once agreed, give
 | `accent` | Additional distinct bright colors | Navigation and decoration without encoding correctness |
 | `success` and `attention` | Distinguishable colors with contrasting text | Feedback paired with words or a symbol |
 
-These describe roles to explore, not approved colors or a finished palette. Develop sample combinations with the family and test them on the physical tablet before selecting values.
+Current text combinations have calculated contrast ratios: primary purple on white 8.89:1 and on pale purple 7.38:1; ink on the page 13.99:1 and on the green instruction surface 12.97:1; star ink on green 7.28:1. These are digital calculations, not a substitute for physical-tablet review.
 
 Check actual foreground/background combinations for at least 4.5:1 normal text contrast and 3:1 for large text and meaningful control boundaries; adjust candidates where necessary. Never convey correctness or selection by color alone. Use the platform sans-serif for readable French accents, with candidate sizes of 20sp body, 24sp instruction/section title and 30sp screen title, adapted for available width and user font scaling. Avoid fixed-height text containers; wrap long labels without clipping. Use at least 48 × 48dp interactive targets with space between them (the current buttons already set a 64dp minimum height); keep target bounds visible and independently tappable. Provide text labels, accessible names and clear focus and selected states. Do not rely on icons or sound alone.
 
@@ -54,8 +54,8 @@ For each implementation slice, run the existing user-visible APK and worksheet p
 
 | Question | Proposed next step |
 | --- | --- |
-| Preview label | Family reviews a distinct preview label, including the **Petits Pas · Aperçu** candidate; check name conflicts before adoption. |
-| Palette and illustration | Family reviews bright, colorful samples on the tablet and chooses the palette, whether illustrations or a logo are wanted, and their style. |
+| Name conflicts | Check the name for conflicts before wider distribution; the current choice is not a clearance claim. |
+| Palette and illustration | Family reviews the implemented blue, purple and green direction and illustrations on the tablet; refine if needed. |
 | Tokens and accessibility | Maintainer measures actual color pairs and prototypes scalable type, targets and focus; family reviews on the target tablet before values are accepted. |
 | Catalogue layout | Family reviews the all-games catalogue and optional year/subject/topic filter layout on the tablet; the chosen browsing behavior does not require a separate year-first screen. |
 | Scope and sequencing | Maintainer turns agreed decisions into independently verifiable issues; coordinate catalogue changes with the separate classification and profile plans. |

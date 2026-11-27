@@ -23,6 +23,7 @@ def play_p1_worksheet():
     subprocess.run(["bash", "scripts/preview-worksheet.sh", str(P1_FIXTURE)], check=True)
     see = partial(visible, package=PACKAGE)
     touch = partial(tap, package=PACKAGE)
+    see("Petits Pas · Aperçu")
     see("Aperçu du brouillon")
     touch("P1")
     see("Les étoiles à compter")
@@ -58,6 +59,7 @@ def play_p3_worksheet():
     subprocess.run(["bash", "scripts/preview-worksheet.sh", str(P3_FIXTURE)], check=True)
     see = partial(visible, package=PACKAGE)
     touch = partial(tap, package=PACKAGE)
+    see("Petits Pas · Aperçu")
     see("Aperçu du brouillon")
     touch("P3")
     if len(visible_matches("Les mots de même sens", PACKAGE)) != 1:

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">AppForKids</string>
+    <string name="app_name">Petits Pas</string>
     <string name="question_progress">Question %1$d sur %2$d</string>
     <string name="pair_progress">Paires associées : %1$d sur %2$d</string>
     <string name="chosen_word">Mot choisi : %1$s</string>
@@ -8,8 +8,8 @@
     <style name="AppThemeBase" parent="android:style/Theme.Material.Light.NoActionBar">
         <item name="android:fontFamily">sans-serif</item>
         <item name="android:windowLightStatusBar">true</item>
-        <item name="android:colorAccent">#2257A5</item>
-        <item name="android:windowBackground">#F8F5ED</item>
+        <item name="android:colorAccent">@color/primary</item>
+        <item name="android:windowBackground">@color/surface</item>
     </style>
     <style name="AppTheme" parent="AppThemeBase" />
 </resources>
