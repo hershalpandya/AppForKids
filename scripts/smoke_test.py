@@ -74,6 +74,7 @@ def play_starter():
     launched = adb("shell", "am", "start", "-W", "-S", "-n", f"{PACKAGE}/.MainActivity")
     if "Status: ok" not in launched.stdout:
         raise AssertionError(launched.stdout + launched.stderr)
+    visible("Petits Pas")
     visible("Choisis ton année")
     tap("P1")
     visible("Compte des groupes de 1 à 10 étoiles.", absent=("Les mots de même sens",))

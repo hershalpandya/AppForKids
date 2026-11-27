@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="surface">#F0F7FF</color>
+    <color name="surface_raised">#FFFFFF</color>
+    <color name="text_primary">#17244B</color>
+    <color name="primary">#5630A5</color>
+    <color name="primary_light">#ECE7FF</color>
+    <color name="instruction_surface">#E1F3DA</color>
+    <color name="illustration_blue">#2076CA</color>
+    <color name="illustration_green">#38823C</color>
+    <color name="star_ink">#744000</color>
+</resources>
