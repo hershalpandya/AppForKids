@@ -4,7 +4,7 @@ set -euo pipefail
 apk=${1:?Usage: test-apk-on-emulator.sh APK}
 reports=build/ci
 avd=appforkids-tablet
-image='system-images;android-35;default;x86_64'
+image=${ANDROID_TABLET_IMAGE:?Set ANDROID_TABLET_IMAGE to the installed system image}
 emulator="${ANDROID_HOME:?Set ANDROID_HOME}/emulator/emulator"
 export PATH="$ANDROID_HOME/platform-tools:$PATH"
 export ANDROID_SERIAL=emulator-5554
@@ -46,5 +46,5 @@ adb shell settings put global animator_duration_scale 0
 adb shell cmd connectivity airplane-mode enable
 adb shell svc wifi disable
 adb shell svc data disable
-adb install "$apk" | tee "$reports/install.log"
+adb install "$apk" 2>&1 | tee "$reports/install.log"
 python3 scripts/smoke_test.py "$reports"

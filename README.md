@@ -30,10 +30,10 @@ Use the same key and app ID for future family releases. Increase `versionCode` i
   printf '\n'
   export APPFORKIDS_STORE_PASSWORD
   export APPFORKIDS_KEY_PASSWORD="$APPFORKIDS_STORE_PASSWORD"
-  ./gradlew :app:assembleRelease
+  ./gradlew :app:assembleRelease && \
+    "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs \
+      app/build/outputs/apk/release/app-release.apk
 )
-"$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs \
-  app/build/outputs/apk/release/app-release.apk
 ```
 
 ## Install on the tablet
