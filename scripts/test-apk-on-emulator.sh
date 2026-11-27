@@ -87,6 +87,13 @@ if ! timeout 90s bash -c '
 fi
 
 adb install "$apk" 2>&1 | tee "$reports/install.log"
+# This AVD is disposable. Root access is needed only to seed corrupt private
+# preferences, which cannot be produced through the normal release UI.
+adb root
+adb wait-for-device
+python3 scripts/review_regression.py 2>&1 | tee "$reports/review-regression.log"
+# The regression fixtures are disposable and must not influence the normal flow.
+adb shell pm clear be.hershalpandya.appforkids
 python3 scripts/smoke_test.py "$reports"
 
 if [[ -n "$preview_apk" ]]; then

@@ -35,26 +35,44 @@ def visible_matches(text, package=PACKAGE, *, absent=(), rotation=None):
                     for node in hierarchy.iter("node")
                     if node.get("package") == package
                 ]
-                matches = [
-                    node for node in nodes
-                    if node.get("text") == text and node.get("enabled") == "true"
-                ]
+                matches = [node for node in nodes
+                           if node.get("text") == text and node.get("enabled") == "true"]
+                if not matches:
+                    matches = [node for node in nodes
+                               if (node.get("text") or "").casefold() == text.casefold()
+                               and node.get("enabled") == "true"]
+                    if len({node.get("text") for node in matches}) > 1:
+                        raise AssertionError(f"Ambiguous capitalization for {text!r}")
                 if matches and (rotation is None or hierarchy.get("rotation") == str(rotation)):
+                    parents = {child: parent for parent in hierarchy.iter() for child in parent}
+                    targets = []
+                    for match in matches:
+                        target = match
+                        while target.get("clickable") != "true" and target in parents:
+                            parent = parents[target]
+                            if parent.get("class") == "android.widget.ListView":
+                                # Dialog list rows are selectable even when Android 35
+                                # does not expose the click action in accessibility.
+                                match.set("test-selectable", "true")
+                                target = match
+                                break
+                            target = parent
+                        targets.append(target if target.get("clickable") == "true" else match)
                     labels = {node.get("text") for node in nodes}
                     if unexpected := labels.intersection(absent):
                         raise AssertionError(f"Unexpected visible labels: {sorted(unexpected)!r}")
-                    return matches
+                    return targets
                 last_labels = [node.get("text") for node in nodes if node.get("text")]
-        # The catalogue can extend beyond the tablet viewport. Search in both
-        # directions so callers can use visible controls after any prior scroll.
-        size = adb("shell", "wm", "size").stdout
-        dimensions = re.findall(r"(\d+)x(\d+)", size)
-        if dimensions:
-            width, height = map(int, dimensions[-1])
-            start, end = ((3 * height // 4, height // 4) if attempts % 8 < 4
-                          else (height // 4, 3 * height // 4))
-            adb("shell", "input", "swipe", str(width // 2), str(start),
-                str(width // 2), str(end), "300")
+        # Only scroll an actual scroll container. Swiping outside an open dialog
+        # dismisses it, hiding the very control we are waiting for.
+        scrollable = next((node for node in nodes if node.get("scrollable") == "true"), None) if dumped.returncode == 0 and result.returncode == 0 and result.stdout.strip().startswith("<?xml") else None
+        if scrollable is not None:
+            left, top, right, bottom = map(int, re.findall(r"\d+", scrollable.attrib["bounds"]))
+            height = bottom - top
+            start, end = ((top + 3 * height // 4, top + height // 4) if attempts % 8 < 4
+                          else (top + height // 4, top + 3 * height // 4))
+            adb("shell", "input", "swipe", str((left + right) // 2), str(start),
+                str((left + right) // 2), str(end), "300")
         attempts += 1
         time.sleep(0.2)
     raise AssertionError(f"Expected visible text {text!r}. Last app labels: {last_labels!r}")
@@ -66,7 +84,7 @@ def visible(text, package=PACKAGE, *, absent=(), rotation=None):
 
 def tap(text, package=PACKAGE):
     node = visible(text, package)
-    if node.get("clickable") != "true":
+    if node.get("clickable") != "true" and node.get("test-selectable") != "true":
         raise AssertionError(f"Expected a touch control for {text!r}")
     left, top, right, bottom = map(int, re.findall(r"\d+", node.attrib["bounds"]))
     adb("shell", "input", "tap", str((left + right) // 2), str((top + bottom) // 2))
