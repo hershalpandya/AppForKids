@@ -22,6 +22,7 @@ def adb(*arguments, check=True):
 def visible_matches(text, package=PACKAGE, *, absent=(), rotation=None):
     deadline = time.monotonic() + 20
     last_labels = []
+    attempts = 0
     while time.monotonic() < deadline:
         adb("shell", "rm", "-f", HIERARCHY)
         dumped = adb("shell", "uiautomator", "dump", HIERARCHY, check=False)
@@ -44,7 +45,18 @@ def visible_matches(text, package=PACKAGE, *, absent=(), rotation=None):
                         raise AssertionError(f"Unexpected visible labels: {sorted(unexpected)!r}")
                     return matches
                 last_labels = [node.get("text") for node in nodes if node.get("text")]
-        time.sleep(0.5)
+        # The catalogue can extend beyond the tablet viewport. Search in both
+        # directions so callers can use visible controls after any prior scroll.
+        size = adb("shell", "wm", "size").stdout
+        dimensions = re.findall(r"(\d+)x(\d+)", size)
+        if dimensions:
+            width, height = map(int, dimensions[-1])
+            start, end = ((3 * height // 4, height // 4) if attempts % 8 < 4
+                          else (height // 4, 3 * height // 4))
+            adb("shell", "input", "swipe", str(width // 2), str(start),
+                str(width // 2), str(end), "300")
+        attempts += 1
+        time.sleep(0.2)
     raise AssertionError(f"Expected visible text {text!r}. Last app labels: {last_labels!r}")
 
 
@@ -101,8 +113,15 @@ def play_starter():
     adb("shell", "input", "text", "Bob")
     tap("Ajouter")
     tap("Alice")
-    visible("Choisis ton année")
+    visible("Les jeux")
+    visible("Les étoiles à compter")
+    visible("Les mots de même sens")
+    tap("Année : Toutes")
     tap("P1")
+    tap("Matière : Toutes")
+    tap("Mathématiques")
+    tap("Sujet : Tous")
+    tap("Compter")
     visible("Compte des groupes de 1 à 10 étoiles.", absent=("Les mots de même sens",))
     tap("Les étoiles à compter")
     visible("Exemple : ★ ★ ★ = 3")
@@ -122,7 +141,14 @@ def play_starter():
     visible("Question 1 sur 3")
     tap("Retour au catalogue")
     visible("Compte des groupes de 1 à 10 étoiles.")
-    tap("Changer d’année")
+    visible("Année : P1")
+    visible("Matière : Mathématiques")
+    visible("Sujet : Compter")
+    tap("Année : P1")
+    tap("P3")
+    visible("Aucun jeu pour ce choix.")
+    tap("Effacer les filtres")
+    tap("Année : Toutes")
     tap("P3")
     visible("Les mots de même sens", absent=("Les étoiles à compter",))
     tap("Les mots de même sens")
@@ -147,7 +173,7 @@ def play_starter():
     tap("Rejouer")
     visible("Paires associées : 0 sur 3")
     tap("Retour au catalogue")
-    tap("Changer d’année")
+    tap("Année : P3")
     tap("P1")
     tap("Les étoiles à compter")
     tap("Jouer")
@@ -156,13 +182,12 @@ def play_starter():
     visible("Bravo, il y a 4 étoiles !")
     tap("Changer d’enfant")
     tap("Bob")
-    tap("P1")
     tap("Les étoiles à compter")
     tap("Jouer")
     visible("Question 1 sur 3", absent=("Bravo, il y a 4 étoiles !",))
     tap("Changer d’enfant")
     tap("Alice")
-    tap("P3")
+    tap("Effacer les filtres")
     tap("Les mots de même sens")
     tap("Jouer")
     visible("Paires associées : 0 sur 3")
@@ -193,7 +218,6 @@ def play_starter():
     adb("shell", "input", "text", "Bob")
     tap("Ajouter")
     tap("Bob")
-    tap("P3")
     tap("Les mots de même sens")
     tap("Jouer")
     visible("Paires associées : 0 sur 3")
