@@ -34,7 +34,7 @@ jobs:
       ANDROID_TABLET_IMAGE: 'system-images;android-35;default;x86_64'
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
