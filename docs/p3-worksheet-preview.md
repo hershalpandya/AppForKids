@@ -31,7 +31,7 @@ bash scripts/preview-worksheet.sh --build tests/fixtures/les-mots-de-meme-sens-c
 
 In **AppForKids · Aperçu**, open **P3** and **Les mots de même sens**. Tap **commencer**, then **beau** to check the changed hint. Tap **débuter** to retry, match the other pairs against the answer key, and finish the round. Run the same preview command without `--build` after updating the draft. The preview helper validates the draft before loading it.
 
-After reviewing the exact revision, record approval in private storage and use the [signed release workflow](../README.md#approve-and-release-a-worksheet-game) with the printed selector.
+After reviewing the exact revision, record approval in private storage and use the [signed release workflow](parent-handoff.md#validate-and-approve-the-exact-revision) with the printed selector.
 
 ```sh
 python3 scripts/release.py approve --store "$HOME/AppForKids-private/approved" \

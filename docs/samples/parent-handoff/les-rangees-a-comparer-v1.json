@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "id": "les-rangees-a-comparer",
+  "revision": 1,
+  "year": "P1",
+  "type": "tap-to-choose",
+  "title": "Les rangées à comparer",
+  "objective": "Compare le nombre de jetons dans deux rangées.",
+  "instructions": "Regarde les deux rangées. Touche celle qui a le plus de jetons. S’il y en a autant, touche « Autant ».",
+  "workedExample": "Exemple : en haut ● ● ; en bas ●. Il y en a plus en haut.",
+  "questions": [
+    {
+      "prompt": "Où y a-t-il le plus de jetons ?",
+      "visualRows": ["● ● ● ● ●", "● ● ●"],
+      "choices": ["En haut", "En bas", "Autant"],
+      "answer": "En haut",
+      "correctFeedback": "Bravo ! En haut, 5 jetons. En bas, 3 jetons.",
+      "retryFeedback": "Compte la rangée du haut, puis celle du bas."
+    },
+    {
+      "prompt": "Où y a-t-il le plus de jetons ?",
+      "visualRows": ["● ● ● ●", "● ● ● ●"],
+      "choices": ["En haut", "En bas", "Autant"],
+      "answer": "Autant",
+      "correctFeedback": "Bravo ! Il y a 4 jetons dans chaque rangée.",
+      "retryFeedback": "Compte chaque rangée. Trouves-tu le même nombre ?"
+    }
+  ]
+}
