@@ -90,6 +90,37 @@ def tap(text, package=PACKAGE):
     adb("shell", "input", "tap", str((left + right) // 2), str((top + bottom) // 2))
 
 
+def enter_text(value, package=PACKAGE):
+    """Focus the visible editor and verify input before submitting its dialog."""
+    deadline = time.monotonic() + 20
+    tapped = False
+    while time.monotonic() < deadline:
+        adb("shell", "rm", "-f", HIERARCHY)
+        dumped = adb("shell", "uiautomator", "dump", HIERARCHY, check=False)
+        if dumped.returncode == 0:
+            result = adb("exec-out", "cat", HIERARCHY, check=False)
+            if result.returncode == 0 and result.stdout.strip().startswith("<?xml"):
+                hierarchy = ET.fromstring(result.stdout)
+                editors = [node for node in hierarchy.iter("node")
+                           if node.get("package") == package
+                           and node.get("class") == "android.widget.EditText"
+                           and node.get("enabled") == "true"]
+                if len(editors) > 1:
+                    raise AssertionError("Expected a single visible text field")
+                if editors:
+                    editor = editors[0]
+                    if editor.get("focused") == "true" and tapped:
+                        adb("shell", "input", "text", value)
+                        visible(value, package)
+                        return
+                    left, top, right, bottom = map(int, re.findall(r"\d+", editor.attrib["bounds"]))
+                    adb("shell", "input", "tap", str((left + right) // 2),
+                        str((top + bottom) // 2))
+                    tapped = True
+        time.sleep(0.2)
+    raise AssertionError("Text field did not become focused")
+
+
 def airplane_mode_is_on():
     result = adb("shell", "settings", "get", "global", "airplane_mode_on").stdout.strip()
     if result != "1":
@@ -108,27 +139,27 @@ def play_starter():
     visible("Qui va jouer ?")
     tap("Ajouter un enfant")
     visible("Combien font 7 + 5 ?")
-    adb("shell", "input", "text", "11")
+    enter_text("11")
     tap("Vérifier")
     visible("Essaie encore.")
     adb("shell", "input", "keyevent", "KEYCODE_MOVE_END")
     adb("shell", "input", "keyevent", "KEYCODE_DEL")
     adb("shell", "input", "keyevent", "KEYCODE_DEL")
-    adb("shell", "input", "text", "12")
+    enter_text("12")
     tap("Vérifier")
     visible("Prénom ou surnom")
-    adb("shell", "input", "text", "Alice")
+    enter_text("Alice")
     tap("Ajouter")
     tap("Ajouter un enfant")
-    adb("shell", "input", "text", "12")
+    enter_text("12")
     tap("Vérifier")
-    adb("shell", "input", "text", "Alice")
+    enter_text("Alice")
     tap("Ajouter")
     visible("Ce nom existe déjà. Choisis un autre surnom.")
     adb("shell", "input", "keyevent", "KEYCODE_MOVE_END")
     for _ in range(5):
         adb("shell", "input", "keyevent", "KEYCODE_DEL")
-    adb("shell", "input", "text", "Bob")
+    enter_text("Bob")
     tap("Ajouter")
     tap("Alice")
     visible("Les jeux")
@@ -229,12 +260,12 @@ def play_starter():
     tap("P1")
     visible("★ Jeu terminé")
     tap("Réinitialiser les résultats")
-    adb("shell", "input", "text", "12")
+    enter_text("12")
     tap("Vérifier")
     tap("Annuler")
     visible("★ Jeu terminé")
     tap("Réinitialiser les résultats")
-    adb("shell", "input", "text", "12")
+    enter_text("12")
     tap("Vérifier")
     tap("Réinitialiser")
     visible("Les étoiles à compter", absent=("★ Jeu terminé",))
@@ -248,26 +279,26 @@ def play_starter():
     tap("Terminer")
     tap("Changer d’enfant")
     tap("Supprimer Bob")
-    adb("shell", "input", "text", "11")
+    enter_text("11")
     tap("Vérifier")
     visible("Essaie encore.")
     adb("shell", "input", "keyevent", "KEYCODE_MOVE_END")
     adb("shell", "input", "keyevent", "KEYCODE_DEL")
     adb("shell", "input", "keyevent", "KEYCODE_DEL")
-    adb("shell", "input", "text", "12")
+    enter_text("12")
     tap("Vérifier")
     visible("Supprimer Bob ?")
     tap("Annuler")
     visible("Bob")
     tap("Supprimer Bob")
-    adb("shell", "input", "text", "12")
+    enter_text("12")
     tap("Vérifier")
     tap("Supprimer")
     visible("Alice", absent=("Bob",))
     tap("Ajouter un enfant")
-    adb("shell", "input", "text", "12")
+    enter_text("12")
     tap("Vérifier")
-    adb("shell", "input", "text", "Bob")
+    enter_text("Bob")
     tap("Ajouter")
     tap("Bob")
     visible("Les étoiles à compter", absent=("★ Jeu terminé",))

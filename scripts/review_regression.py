@@ -8,7 +8,7 @@ import html
 import json
 import tempfile
 
-from smoke_test import PACKAGE, adb, airplane_mode_is_on, tap, visible
+from smoke_test import PACKAGE, adb, airplane_mode_is_on, enter_text, tap, visible
 
 PREFS = f"/data/user/0/{PACKAGE}/shared_prefs/MainActivity.xml"
 
@@ -34,7 +34,7 @@ def seed(profiles, results):
 
 
 def parent():
-    adb("shell", "input", "text", "12")
+    enter_text("12")
     tap("Vérifier")
 
 
