@@ -381,15 +381,39 @@ public final class MainActivity extends Activity {
         return true;
     }
 
+    private LinearLayout dialogInput(EditText input, TextView error) {
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(24), 0, dp(24), 0);
+        content.addView(input, new LinearLayout.LayoutParams(-1, -2));
+        error.setVisibility(View.GONE);
+        input.addTextChangedListener(new android.text.TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence text, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence text, int start, int before, int count) {
+                error.setVisibility(View.GONE);
+            }
+            @Override public void afterTextChanged(android.text.Editable text) { }
+        });
+        content.addView(error, new LinearLayout.LayoutParams(-1, -2));
+        return content;
+    }
+
+    private void showDialogError(TextView error, String message) {
+        error.setText(message);
+        error.setVisibility(View.VISIBLE);
+        error.announceForAccessibility(message);
+    }
+
     private void parentCheck(Runnable passed) {
         EditText answer = new EditText(this);
         answer.setInputType(InputType.TYPE_CLASS_NUMBER);
+        TextView error = text("", 18, ink);
         AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Vérification pour les parents")
-                .setMessage("Combien font 7 + 5 ?").setView(answer)
+                .setMessage("Combien font 7 + 5 ?").setView(dialogInput(answer, error))
                 .setNegativeButton("Annuler", null).setPositiveButton("Vérifier", null).create();
         dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
             if (!answer.getText().toString().equals("12")) {
-                answer.setError("Essaie encore.");
+                showDialogError(error, "Essaie encore.");
                 return;
             }
             dialog.dismiss();
@@ -413,24 +437,25 @@ public final class MainActivity extends Activity {
         EditText name = new EditText(this);
         name.setSingleLine(true);
         name.setHint("Prénom ou surnom");
+        TextView error = text("", 18, ink);
         AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Ajouter un enfant")
-                .setMessage("Un prénom ou surnom suffit.").setView(name)
+                .setMessage("Un prénom ou surnom suffit.").setView(dialogInput(name, error))
                 .setNegativeButton("Annuler", null).setPositiveButton("Ajouter", null).create();
         dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
             String value = name.getText().toString().trim();
             if (value.isEmpty() || value.length() > 40 || containsControl(value)) {
-                name.setError("Saisis un nom de 1 à 40 caractères, sans caractères de contrôle.");
+                showDialogError(error, "Saisis un nom de 1 à 40 caractères, sans caractères de contrôle.");
                 return;
             }
             for (Child child : children) {
                 if (sameChildName(child.name, value)) {
-                    name.setError("Ce nom existe déjà. Choisis un autre surnom.");
+                    showDialogError(error, "Ce nom existe déjà. Choisis un autre surnom.");
                     return;
                 }
             }
             List<Child> updated = new ArrayList<>(children);
             updated.add(new Child(UUID.randomUUID().toString(), value));
-            if (!saveChildren(updated)) { name.setError("Enregistrement impossible. Réessaie."); return; }
+            if (!saveChildren(updated)) { showDialogError(error, "Enregistrement impossible. Réessaie."); return; }
             dialog.dismiss();
             render();
         }));

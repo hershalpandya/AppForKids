@@ -146,6 +146,7 @@ def play_starter():
     adb("shell", "input", "keyevent", "KEYCODE_DEL")
     adb("shell", "input", "keyevent", "KEYCODE_DEL")
     enter_text("12")
+    visible("12", absent=("Essaie encore.",))
     tap("Vérifier")
     visible("Prénom ou surnom")
     enter_text("Alice")
@@ -160,6 +161,7 @@ def play_starter():
     for _ in range(5):
         adb("shell", "input", "keyevent", "KEYCODE_DEL")
     enter_text("Bob")
+    visible("Bob", absent=("Ce nom existe déjà. Choisis un autre surnom.",))
     tap("Ajouter")
     tap("Alice")
     visible("Les jeux")
