@@ -13,6 +13,7 @@ from zipfile import ZipFile
 REPO = Path(__file__).resolve().parents[1]
 COMMAND = REPO / "scripts/release.py"
 FIXTURE = REPO / "tests/fixtures/les-jetons-a-reunir.json"
+MATCHING_FIXTURE = FIXTURE.with_name("les-mots-de-meme-sens-corrige.json")
 
 
 class ReleaseTest(unittest.TestCase):
@@ -56,6 +57,42 @@ class ReleaseTest(unittest.TestCase):
         self.assertIn("les-jetons-a-reunir@3 is not approved", unapproved.stderr)
         self.assertEqual(b"previous signed release", self.output.read_bytes())
 
+    def test_p3_matching_draft_is_approved_and_packaged_with_p1(self):
+        self.game = json.loads(MATCHING_FIXTURE.read_text(encoding="utf-8"))
+        approved = self.approve()
+        self.assertEqual(0, approved.returncode, approved.stderr)
+        self.assertIn("Approved les-mots-de-meme-sens@2", approved.stdout)
+
+        selection = self.workspace / "selection.json"
+        selection.write_text(
+            json.dumps({"store": str(self.store), "games": ["les-mots-de-meme-sens@2"]}),
+            encoding="utf-8",
+        )
+        assets = self.workspace / "assets"
+        packaged = subprocess.run(
+            [sys.executable, COMMAND, "package-catalogue", assets, "--selection", selection],
+            capture_output=True, text=True, cwd=REPO,
+        )
+        self.assertEqual(0, packaged.returncode, packaged.stderr)
+        games = assets / "games"
+        catalogue = json.loads((games / "catalogue.json").read_text(encoding="utf-8"))
+        self.assertIn("compter-les-etoiles.json", catalogue["games"])
+        self.assertIn("les-mots-de-meme-sens.json", catalogue["games"])
+        self.assertEqual(
+            self.game, json.loads((games / "les-mots-de-meme-sens.json").read_text(encoding="utf-8"))
+        )
+
+    def test_validation_rejects_indistinguishable_matching_tiles(self):
+        self.game = json.loads(MATCHING_FIXTURE.read_text(encoding="utf-8"))
+        self.game["pairs"][2]["right"] = " heureux "
+        self.draft.write_text(json.dumps(self.game), encoding="utf-8")
+        checked = subprocess.run(
+            [sys.executable, COMMAND, "validate", self.draft],
+            capture_output=True, text=True, cwd=REPO,
+        )
+        self.assertNotEqual(0, checked.returncode)
+        self.assertIn("pair 3.right: use distinct labels", checked.stderr)
+
     def test_duplicate_selections_fail_before_packaging(self):
         approved = self.approve()
         self.assertEqual(0, approved.returncode, approved.stderr)
@@ -66,8 +103,8 @@ class ReleaseTest(unittest.TestCase):
 
     def test_invalid_drafts_report_what_to_fix(self):
         for field, value, diagnostic in (
-            ("year", "P3", "unsupported year"),
-            ("type", "matching", "unsupported game type"),
+            ("year", "P2", "unsupported year"),
+            ("type", "drag", "unsupported game type"),
             ("title", None, "missing field 'title'"),
         ):
             with self.subTest(field=field):
@@ -171,6 +208,11 @@ class ReleaseCatalogueTest(unittest.TestCase):
                 (fixtures / "compter-les-etoiles-corrige.json").read_text(encoding="utf-8")
             ),
             FIXTURE.name: json.loads(FIXTURE.read_text(encoding="utf-8")),
+            "les-mots-de-meme-sens.json": json.loads(
+                (REPO / "app/src/main/assets/games/les-mots-de-meme-sens.json").read_text(
+                    encoding="utf-8"
+                )
+            ),
         }
         games[FIXTURE.name]["questions"][1]["prompt"] = "Combien de jetons maintenant ?"
         with tempfile.TemporaryDirectory() as directory:

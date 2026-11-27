@@ -24,6 +24,7 @@ import org.json.JSONException;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.List;
 
 public final class MainActivity extends Activity {
@@ -42,6 +43,7 @@ public final class MainActivity extends Activity {
     private String year;
     private GameDefinition game;
     private GameRound round;
+    private MatchingRound matchingRound;
     private ScrollView scroll;
 
     @Override
@@ -68,7 +70,14 @@ public final class MainActivity extends Activity {
                     break;
                 }
             }
-            if (game != null) {
+            if (game != null && game.type == GameDefinition.Type.MATCHING) {
+                ArrayList<Integer> matches = savedState.getIntegerArrayList("matches");
+                if (matches != null) {
+                    matchingRound = new MatchingRound(game.pairs, matches,
+                            savedState.getInt("selectedPair", MatchingRound.NO_SELECTION),
+                            savedState.getString("matchingFeedback"));
+                }
+            } else if (game != null) {
                 String feedback = savedState.getString("feedback", GameRound.Feedback.NONE.name());
                 round = new GameRound(game, savedState.getInt("question"),
                         GameRound.Feedback.valueOf(feedback));
@@ -88,6 +97,11 @@ public final class MainActivity extends Activity {
         if (round != null) {
             state.putInt("question", round.questionIndex());
             state.putString("feedback", round.feedback().name());
+        }
+        if (matchingRound != null) {
+            state.putIntegerArrayList("matches", matchingRound.matchedPairs());
+            state.putInt("selectedPair", matchingRound.selected());
+            state.putString("matchingFeedback", matchingRound.feedbackMessage());
         }
     }
 
@@ -114,9 +128,6 @@ public final class MainActivity extends Activity {
 
         try (InputStream input = openFileInput(draft.getName())) {
             GameDefinition candidate = GameDefinition.load(input);
-            if (!candidate.year.equals("P1")) {
-                throw new JSONException("The preview currently supports P1 games");
-            }
             for (int index = 0; index < games.size(); index++) {
                 if (games.get(index).id.equals(candidate.id)) {
                     games.set(index, candidate);
@@ -125,7 +136,7 @@ public final class MainActivity extends Activity {
             }
             games.add(candidate);
         } catch (IOException | JSONException error) {
-            previewMessage = "Impossible d’ouvrir le brouillon P1.";
+            previewMessage = "Impossible d’ouvrir le brouillon.";
         }
     }
 
@@ -158,10 +169,8 @@ public final class MainActivity extends Activity {
                 }
                 heading(content, "À toi de jouer !", 42);
                 body(content, "Choisis ton année");
-                button(content, "P1", 32, true, () -> {
-                    year = "P1";
-                    show(Screen.CATALOGUE);
-                });
+                yearButton(content, "P1");
+                yearButton(content, "P3");
                 break;
             case CATALOGUE:
                 heading(content, year + " · Les jeux", 38);
@@ -172,6 +181,7 @@ public final class MainActivity extends Activity {
                         button(card, entry.title, 26, true, () -> {
                             game = entry;
                             round = null;
+                            matchingRound = null;
                             show(Screen.INSTRUCTIONS);
                         });
                     }
@@ -187,7 +197,11 @@ public final class MainActivity extends Activity {
                 catalogueButton(content);
                 break;
             case ROUND:
-                renderRound(content, announceFeedback);
+                if (game.type == GameDefinition.Type.MATCHING) {
+                    renderMatching(content, announceFeedback);
+                } else {
+                    renderRound(content, announceFeedback);
+                }
                 break;
             case COMPLETE:
                 heading(content, "Partie terminée !", 42);
@@ -198,8 +212,19 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private void yearButton(LinearLayout content, String selectedYear) {
+        button(content, selectedYear, 32, true, () -> {
+            year = selectedYear;
+            show(Screen.CATALOGUE);
+        });
+    }
+
     private void startRound() {
-        round = new GameRound(game);
+        if (game.type == GameDefinition.Type.MATCHING) {
+            matchingRound = new MatchingRound(game.pairs);
+        } else {
+            round = new GameRound(game);
+        }
         show(Screen.ROUND);
     }
 
@@ -232,18 +257,89 @@ public final class MainActivity extends Activity {
             }
         }
 
-        String message = round.feedbackMessage();
+        renderFeedback(content, round.feedbackMessage(), announceFeedback);
+        if (round.isAnswered()) {
+            button(content, round.isLastQuestion() ? "Terminer" : "Suivant", 26, true,
+                    () -> show(round.advanceToNextQuestion() ? Screen.ROUND : Screen.COMPLETE));
+        }
+        catalogueButton(content);
+    }
+
+    private void renderMatching(LinearLayout content, boolean announceFeedback) {
+        int pairCount = game.pairs.size();
+        int matched = matchingRound.matchedCount();
+        int selected = matchingRound.selected();
+        heading(content, game.title, 34);
+        body(content, getString(R.string.pair_progress, matched, pairCount));
+        String selection = selected == MatchingRound.NO_SELECTION
+                ? "Touche un mot à gauche."
+                : getString(R.string.chosen_word, game.pairs.get(selected).left);
+        if (!matchingRound.isComplete()) {
+            body(content, selection);
+        }
+
+        LinearLayout board = new LinearLayout(this);
+        board.setOrientation(LinearLayout.HORIZONTAL);
+        add(content, board, 6);
+        LinearLayout left = matchingColumn(board, "À gauche", 8);
+        LinearLayout right = matchingColumn(board, "À droite", 0);
+        for (int i = 0; i < pairCount; i++) {
+            int leftIndex = i;
+            matchingTile(left, game.pairs.get(leftIndex).left, matchingRound.isMatched(leftIndex),
+                    leftIndex == selected, true, () -> {
+                        matchingRound.select(leftIndex);
+                        refreshMatching(false);
+                    });
+            // Offset the answers so the two halves of each pair start on different rows.
+            int rightIndex = (i + 1) % pairCount;
+            matchingTile(right, game.pairs.get(rightIndex).right, matchingRound.isMatched(rightIndex),
+                    false, selected != MatchingRound.NO_SELECTION, () -> {
+                        matchingRound.match(rightIndex);
+                        refreshMatching(true);
+                    });
+        }
+        renderFeedback(content, matchingRound.feedbackMessage(), announceFeedback);
+        if (matchingRound.isComplete()) {
+            button(content, "Terminer", 26, true, () -> show(Screen.COMPLETE));
+        }
+        catalogueButton(content);
+    }
+
+    private LinearLayout matchingColumn(LinearLayout board, String label, int endMargin) {
+        LinearLayout column = new LinearLayout(this);
+        column.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, -2, 1);
+        params.setMarginEnd(dp(endMargin));
+        board.addView(column, params);
+        heading(column, label, 20);
+        return column;
+    }
+
+    private void matchingTile(LinearLayout column, String label, boolean matched,
+                              boolean selected, boolean available, Runnable action) {
+        Button tile = makeButton(matched ? "✓ " + label : label, 26, selected, action);
+        tile.setEnabled(available && !matched);
+        tile.setSelected(selected);
+        if (matched) {
+            tile.setContentDescription(getString(R.string.matched_word, label));
+        }
+        add(column, tile, 8);
+    }
+
+    private void refreshMatching(boolean announceFeedback) {
+        int position = scroll.getScrollY();
+        render(announceFeedback);
+        ScrollView matchingPage = scroll;
+        matchingPage.post(() -> matchingPage.scrollTo(0, position));
+    }
+
+    private void renderFeedback(LinearLayout content, String message, boolean announceFeedback) {
         if (message != null) {
             body(card(content, PALE_BLUE), message);
             if (announceFeedback) {
                 scroll.announceForAccessibility(message);
             }
         }
-        if (round.isAnswered()) {
-            button(content, round.isLastQuestion() ? "Terminer" : "Suivant", 26, true,
-                    () -> show(round.advanceToNextQuestion() ? Screen.ROUND : Screen.COMPLETE));
-        }
-        catalogueButton(content);
     }
 
     private void catalogueButton(LinearLayout content) {

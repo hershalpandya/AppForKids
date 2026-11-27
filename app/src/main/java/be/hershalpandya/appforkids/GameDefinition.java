@@ -11,9 +11,13 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 final class GameDefinition {
+    enum Type { TAP_TO_CHOOSE, MATCHING }
+
+    final Type type;
     final String id;
     final String year;
     final String title;
@@ -22,6 +26,7 @@ final class GameDefinition {
     final String workedExample;
     final String completionMessage;
     final List<Question> questions;
+    final List<Pair> pairs;
 
     static List<GameDefinition> loadCatalogue(AssetManager assets) throws IOException, JSONException {
         JSONArray entries = readJson(assets, "catalogue.json").getJSONArray("games");
@@ -36,24 +41,67 @@ final class GameDefinition {
 
     private GameDefinition(JSONObject data) throws JSONException {
         id = data.getString("id");
-        if (data.getInt("schemaVersion") != 1
-                || data.getInt("revision") < 1
-                || !data.getString("type").equals("tap-to-choose")) {
+        if (data.getInt("schemaVersion") != 1 || data.getInt("revision") < 1) {
             throw new JSONException("Unsupported definition for " + id);
         }
         year = data.getString("year");
+        if (!year.equals("P1") && !year.equals("P3")) {
+            throw new JSONException("Unsupported year for " + id);
+        }
         title = data.getString("title");
         objective = data.getString("objective");
         instructions = data.getString("instructions");
         workedExample = data.getString("workedExample");
         completionMessage = data.optString("completionMessage", "Bravo, tu as répondu à toutes les questions.");
-        JSONArray entries = data.getJSONArray("questions");
-        questions = new ArrayList<>();
+        switch (data.getString("type")) {
+            case "tap-to-choose":
+                type = Type.TAP_TO_CHOOSE;
+                questions = loadQuestions(data.getJSONArray("questions"));
+                pairs = Collections.emptyList();
+                break;
+            case "matching":
+                type = Type.MATCHING;
+                questions = Collections.emptyList();
+                pairs = loadPairs(data.getJSONArray("pairs"));
+                break;
+            default:
+                throw new JSONException("Unsupported game type for " + id);
+        }
+    }
+
+    private static List<Question> loadQuestions(JSONArray entries) throws JSONException {
+        if (entries.length() == 0) {
+            throw new JSONException("At least one question is required");
+        }
+        List<Question> questions = new ArrayList<>();
         for (int i = 0; i < entries.length(); i++) {
             questions.add(new Question(entries.getJSONObject(i)));
         }
-        if (questions.isEmpty()) {
-            throw new JSONException("No questions for " + id);
+        return questions;
+    }
+
+    private static List<Pair> loadPairs(JSONArray entries) throws JSONException {
+        if (entries.length() < 2) {
+            throw new JSONException("At least two matching pairs are required");
+        }
+        List<Pair> pairs = new ArrayList<>();
+        for (int i = 0; i < entries.length(); i++) {
+            pairs.add(new Pair(entries.getJSONObject(i)));
+        }
+        return pairs;
+    }
+
+    static final class Pair {
+        final String left;
+        final String right;
+        final String correctFeedback;
+        final String retryFeedback;
+
+        private Pair(JSONObject data) throws JSONException {
+            left = data.getString("left");
+            right = data.getString("right");
+            correctFeedback = data.getString("correctFeedback");
+            retryFeedback = data.getString("retryFeedback");
         }
     }
 

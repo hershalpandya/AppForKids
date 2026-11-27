@@ -11,13 +11,16 @@ from release import encoded, read_json, unique_fields
 from smoke_test import PACKAGE, adb, airplane_mode_is_on, tap, visible, visible_matches
 
 
-FIXTURES = Path(__file__).resolve().parents[1] / "tests/fixtures"
+REPO = Path(__file__).resolve().parents[1]
+FIXTURES = REPO / "tests/fixtures"
+P3_STARTER = REPO / "app/src/main/assets/games/les-mots-de-meme-sens.json"
 
 
 def verify_catalogue(apk):
     approved = {
         "compter-les-etoiles.json": FIXTURES / "compter-les-etoiles-corrige.json",
         "les-jetons-a-reunir.json": FIXTURES / "les-jetons-a-reunir.json",
+        P3_STARTER.name: P3_STARTER,
     }
     catalogue = "assets/games/catalogue.json"
     with ZipFile(apk) as archive:
@@ -76,6 +79,13 @@ def verify_installed_update(apk):
     visible("Bravo, 3 et 2 font 5 jetons !")
     tap("Retour au catalogue")
     visible("Les étoiles à compter (corrigé)")
+    tap("Changer d’année")
+    tap("P3")
+    tap("Les mots de même sens")
+    tap("Jouer")
+    tap("content")
+    tap("heureux")
+    visible("Oui ! Sami est content : il est heureux.")
     airplane_mode_is_on()
 
 
