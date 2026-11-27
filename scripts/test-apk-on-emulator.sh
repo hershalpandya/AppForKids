@@ -24,7 +24,7 @@ sed '/^disk\.dataPartition\.size[[:space:]]*=/d' "$config" > "$config.tmp"
 printf 'disk.dataPartition.size=2G\n' >> "$config.tmp"
 mv "$config.tmp" "$config"
 
-"$emulator" -avd "$avd" -port 5554 -accel on -no-window -gpu swiftshader \
+"$emulator" -avd "$avd" -port 5554 -partition-size 2048 -accel on -no-window -gpu swiftshader \
     -no-snapshot -no-audio -no-boot-anim -no-metrics > "$reports/emulator.log" 2>&1 &
 emulator_pid=$!
 

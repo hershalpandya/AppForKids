@@ -13,6 +13,20 @@ permissions:
   contents: read
 
 jobs:
+  grype:
+    name: Grype vulnerability scan
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan repository with Grype
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
+        with:
+          path: .
+          fail-build: true
+          output-format: table
+          severity-cutoff: medium
+
   offline-tablet:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -24,6 +38,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+          cache: gradle
 
       - name: Install SDK and tablet system image
         run: |
