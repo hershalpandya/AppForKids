@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import unicodedata
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
@@ -44,13 +45,16 @@ def encoded(data):
     return (json.dumps(data, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode("utf-8")
 
 
-def fields(value, required, optional, location):
+def fields(value, required, optional, location, *, unsupported_hint=None):
     if not isinstance(value, dict):
         raise ReleaseError(f"{location}: expected a JSON object")
     for key in sorted(required - value.keys()):
         raise ReleaseError(f"{location}: missing field {key!r}")
     for key in sorted(value.keys() - required - optional):
-        raise ReleaseError(f"{location}: unsupported field {key!r}; use visualRows for text or symbols")
+        message = f"{location}: unsupported field {key!r}"
+        if unsupported_hint:
+            message += f"; {unsupported_hint}"
+        raise ReleaseError(message)
 
 
 def nonempty(value, location):
@@ -70,10 +74,11 @@ def text_array(value, location, minimum):
 
 
 def validate_game(game, source):
+    visual_hint = "use visualRows for text or symbols"
     text_fields = {"title", "objective", "instructions", "workedExample"}
     fields(
         game, text_fields | {"schemaVersion", "id", "revision", "year", "type", "questions"},
-        {"completionMessage"}, source,
+        {"completionMessage"}, source, unsupported_hint=visual_hint,
     )
     if type(game["schemaVersion"]) is not int or game["schemaVersion"] != 1:
         raise ReleaseError(f"{source}: unsupported schemaVersion; expected 1")
@@ -95,13 +100,16 @@ def validate_game(game, source):
     question_fields = {"prompt", "visualRows", "choices", "answer", "correctFeedback", "retryFeedback"}
     for index, question in enumerate(game["questions"], 1):
         location = f"{source}: question {index}"
-        fields(question, question_fields, set(), location)
+        fields(question, question_fields, set(), location, unsupported_hint=visual_hint)
         for key in ("prompt", "answer", "correctFeedback", "retryFeedback"):
             nonempty(question[key], f"{location}.{key}")
         text_array(question["visualRows"], f"{location}.visualRows", 0)
         text_array(question["choices"], f"{location}.choices", 2)
-        if len({choice.strip() for choice in question["choices"]}) != len(question["choices"]):
-            raise ReleaseError(f"{location}.choices: use distinct choices")
+        choice_keys = {unicodedata.normalize("NFC", choice.strip()) for choice in question["choices"]}
+        if len(choice_keys) != len(question["choices"]):
+            raise ReleaseError(
+                f"{location}.choices: use distinct choices after trimming whitespace and normalizing Unicode"
+            )
         if question["answer"] not in question["choices"]:
             raise ReleaseError(f"{location}.answer: must match one of the choices exactly")
     return game
@@ -194,9 +202,10 @@ def package_catalogue(output, selection):
         fields(manifest, {"store", "games"}, set(), selection)
         identifiers = manifest["games"]
         text_array(identifiers, f"{selection}: games", 0)
-        if identifiers:
-            nonempty(manifest["store"], f"{selection}: store")
-            store = Path(manifest["store"])
+        store_value = manifest["store"]
+        if store_value is not None or identifiers:
+            nonempty(store_value, f"{selection}: store")
+            store = Path(store_value)
     games = release_games(store, identifiers)
 
     assets = output / "games"
@@ -243,9 +252,13 @@ def build_apk(args):
     if not sdk:
         raise ReleaseError("Set ANDROID_HOME to the Android SDK; see the README")
     sdk_tools = Path(sdk) / "build-tools/35.0.0"
-    previous = inspect_apk(args.previous_apk.resolve(), sdk_tools) if args.previous_apk else None
-    if previous and (previous[0] != PACKAGE or args.version_code <= previous[1]):
-        raise ReleaseError(f"Use a previous {PACKAGE} APK and a version code higher than {previous[1]}")
+    previous_certificates = None
+    if args.previous_apk:
+        previous_package, previous_version, previous_certificates = inspect_apk(
+            args.previous_apk.resolve(), sdk_tools
+        )
+        if previous_package != PACKAGE or args.version_code <= previous_version:
+            raise ReleaseError(f"Use a previous {PACKAGE} APK and a version code higher than {previous_version}")
 
     with tempfile.TemporaryDirectory(prefix="appforkids-release-") as directory:
         work = Path(directory)
@@ -265,7 +278,7 @@ def build_apk(args):
         package, version, certificates = inspect_apk(apk, sdk_tools)
         if package != PACKAGE or version != args.version_code:
             raise ReleaseError(f"{apk}: unexpected APK identity {package!r} or version {version}")
-        if previous and certificates != previous[2]:
+        if previous_certificates is not None and certificates != previous_certificates:
             raise ReleaseError("The update was signed with a different key from the previous APK")
         args.output.parent.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(dir=args.output.parent) as publication:

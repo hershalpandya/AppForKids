@@ -4,23 +4,36 @@
 import json
 import re
 import sys
+from pathlib import Path
 from zipfile import ZipFile
 
+from release import encoded, read_json, unique_fields
 from smoke_test import PACKAGE, adb, airplane_mode_is_on, tap, visible, visible_matches
 
 
+FIXTURES = Path(__file__).resolve().parents[1] / "tests/fixtures"
+
+
 def verify_catalogue(apk):
+    approved = {
+        "compter-les-etoiles.json": FIXTURES / "compter-les-etoiles-corrige.json",
+        "les-jetons-a-reunir.json": FIXTURES / "les-jetons-a-reunir.json",
+    }
+    catalogue = "assets/games/catalogue.json"
     with ZipFile(apk) as archive:
-        catalogue = "assets/games/catalogue.json"
-        entries = json.loads(archive.read(catalogue))["games"]
-        expected = {"compter-les-etoiles": 2, "les-jetons-a-reunir": 2}
-        games = [json.loads(archive.read(f"assets/games/{entry}")) for entry in entries]
-        actual = {game["id"]: game["revision"] for game in games}
-        if len(games) != len(expected) or actual != expected:
-            raise AssertionError(f"Expected one entry per approved revision {expected}, got {actual}")
-        assets = {entry for entry in archive.namelist() if entry.startswith("assets/")}
-        if assets != {catalogue, *(f"assets/games/{entry}" for entry in entries)}:
-            raise AssertionError(f"Unexpected update assets: {sorted(assets)}")
+        entries = json.loads(archive.read(catalogue), object_pairs_hook=unique_fields)["games"]
+        if not isinstance(entries, list) or sorted(entries) != sorted(approved):
+            raise AssertionError(f"Expected one entry per approved game {sorted(approved)}, got {entries}")
+
+        assets = sorted(entry for entry in archive.namelist() if entry.startswith("assets/"))
+        expected_assets = sorted([catalogue, *(f"assets/games/{entry}" for entry in approved)])
+        if assets != expected_assets:
+            raise AssertionError(f"Expected APK assets {expected_assets}, got {assets}")
+
+        for name, fixture in approved.items():
+            game = json.loads(archive.read(f"assets/games/{name}"), object_pairs_hook=unique_fields)
+            if encoded(game) != encoded(read_json(fixture)):
+                raise AssertionError(f"{name} differs from its approved fixture {fixture.name}")
 
 
 def installed_version():

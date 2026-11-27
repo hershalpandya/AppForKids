@@ -8,6 +8,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from zipfile import ZipFile
 
 REPO = Path(__file__).resolve().parents[1]
 COMMAND = REPO / "scripts/release.py"
@@ -83,6 +84,13 @@ class ReleaseTest(unittest.TestCase):
         self.assertIn("question 1.answer: must match one of the choices", invalid.stderr)
         self.assertFalse(self.store.exists())
 
+    def test_canonically_equivalent_choices_cannot_be_approved(self):
+        self.game["questions"][0].update(choices=["é", "e\u0301", "a"], answer="é")
+        invalid = self.approve()
+        self.assertNotEqual(0, invalid.returncode)
+        self.assertIn("question 1.choices: use distinct choices", invalid.stderr)
+        self.assertFalse(self.store.exists())
+
     def isolated_starter(self):
         self.command = self.workspace / "scripts/release.py"
         self.command.parent.mkdir()
@@ -93,6 +101,30 @@ class ReleaseTest(unittest.TestCase):
             REPO / "app/starter-approvals.json", self.workspace / "app/starter-approvals.json"
         )
         return games / "compter-les-etoiles.json"
+
+    def test_receipt_errors_identify_unsupported_fields(self):
+        approved = self.approve()
+        self.assertEqual(0, approved.returncode, approved.stderr)
+        snapshot = self.store / "les-jetons-a-reunir@2.json"
+        receipt = json.loads(snapshot.read_text(encoding="utf-8"))
+        receipt["extra"] = "invalid"
+        snapshot.write_text(json.dumps(receipt), encoding="utf-8")
+
+        invalid = self.build("les-jetons-a-reunir@2")
+        self.assertNotEqual(0, invalid.returncode)
+        self.assertIn(f"{snapshot}: unsupported field 'extra'", invalid.stderr)
+        self.assertNotIn("visualRows", invalid.stderr)
+
+    def test_packaging_rejects_an_invalid_store_even_without_selected_games(self):
+        selection = self.workspace / "selection.json"
+        selection.write_text(json.dumps({"store": [], "games": []}), encoding="utf-8")
+        invalid = subprocess.run(
+            [sys.executable, COMMAND, "package-catalogue", self.workspace / "assets",
+             "--selection", selection],
+            capture_output=True, text=True, cwd=REPO,
+        )
+        self.assertNotEqual(0, invalid.returncode)
+        self.assertIn(f"{selection}: store: expected nonempty text", invalid.stderr)
 
     def test_editing_the_bundled_starter_requires_approval(self):
         starter = self.isolated_starter()
@@ -129,6 +161,37 @@ class ReleaseTest(unittest.TestCase):
         self.assertNotEqual(0, failed.returncode)
         self.assertIn("APPFORKIDS_KEYSTORE", failed.stderr)
         self.assertEqual(b"previous signed release", self.output.read_bytes())
+
+
+class ReleaseCatalogueTest(unittest.TestCase):
+    def test_apk_verification_rejects_an_edited_prompt_at_the_same_revision(self):
+        fixtures = FIXTURE.parent
+        games = {
+            "compter-les-etoiles.json": json.loads(
+                (fixtures / "compter-les-etoiles-corrige.json").read_text(encoding="utf-8")
+            ),
+            FIXTURE.name: json.loads(FIXTURE.read_text(encoding="utf-8")),
+        }
+        games[FIXTURE.name]["questions"][1]["prompt"] = "Combien de jetons maintenant ?"
+        with tempfile.TemporaryDirectory() as directory:
+            apk = Path(directory) / "candidate.apk"
+            with ZipFile(apk, "w") as archive:
+                archive.writestr("assets/games/catalogue.json", json.dumps({"games": list(games)}))
+                for name, game in games.items():
+                    archive.writestr(f"assets/games/{name}", json.dumps(game))
+            checked = subprocess.run(
+                [
+                    sys.executable, "-c",
+                    "import sys\n"
+                    "from release_smoke_test import verify_catalogue\n"
+                    "verify_catalogue(sys.argv[1])",
+                    apk,
+                ],
+                cwd=REPO / "scripts", capture_output=True, text=True,
+            )
+
+        self.assertNotEqual(0, checked.returncode)
+        self.assertIn(f"{FIXTURE.name} differs from its approved fixture", checked.stderr)
 
 
 if __name__ == "__main__":
