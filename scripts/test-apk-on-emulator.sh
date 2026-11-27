@@ -89,8 +89,22 @@ fi
 adb install "$apk" 2>&1 | tee "$reports/install.log"
 # This AVD is disposable. Root access is needed only to seed corrupt private
 # preferences, which cannot be produced through the normal release UI.
-adb root
-adb wait-for-device
+if ! timeout 90s bash -c '
+    while true; do
+        # adbd can close the connection while restarting; the response to root
+        # alone does not establish whether the restarted daemon is ready.
+        timeout 10s adb wait-for-device || true
+        timeout 10s adb root || true
+        if timeout 10s adb wait-for-device &&
+           [[ "$(timeout 10s adb shell id -u 2>/dev/null | tr -d "\r")" == 0 ]]; then
+            exit 0
+        fi
+        sleep 2
+    done
+'; then
+    echo "Could not obtain a root adb connection on the disposable emulator within 90 seconds." >&2
+    exit 1
+fi
 python3 scripts/review_regression.py 2>&1 | tee "$reports/review-regression.log"
 # The regression fixtures are disposable and must not influence the normal flow.
 adb shell pm clear be.hershalpandya.appforkids
