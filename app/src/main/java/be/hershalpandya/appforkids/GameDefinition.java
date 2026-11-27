@@ -108,10 +108,14 @@ final class GameDefinition {
     static final class Classification {
         final String subject;
         final List<String> topics;
+        final String subjectLabel;
+        final List<String> topicLabels;
 
-        Classification(String subject, List<String> topics) {
+        Classification(String subject, List<String> topics, String subjectLabel, List<String> topicLabels) {
             this.subject = subject;
             this.topics = Collections.unmodifiableList(topics);
+            this.subjectLabel = subjectLabel;
+            this.topicLabels = Collections.unmodifiableList(topicLabels);
         }
     }
 
@@ -201,7 +205,7 @@ final class GameDefinition {
                 topicIds.add(topic);
                 topicLabels.add(knownTopics.getString(topic));
             }
-            resolved.add(new Classification(subject, topicIds));
+            resolved.add(new Classification(subject, topicIds, definition.getString("label"), topicLabels));
             labels.add(definition.getString("label") + " → " + TextUtils.join(", ", topicLabels));
         }
         return TextUtils.join("; ", labels);

@@ -35,6 +35,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 public final class MainActivity extends Activity {
     private int paper, ink, primary, palePurple, paleGreen, starInk;
@@ -52,8 +54,11 @@ public final class MainActivity extends Activity {
 
     private List<GameDefinition> games;
     private String previewMessage;
-    private Screen screen = Screen.HOME;
+    private Screen screen = Screen.CATALOGUE;
     private String year;
+    private String subject;
+    private String topicSubject;
+    private String topic;
     private GameDefinition game;
     private GameRound round;
     private MatchingRound matchingRound;
@@ -108,21 +113,24 @@ public final class MainActivity extends Activity {
     }
 
     private void restoreScreen(Bundle state) {
-        screen = Screen.valueOf(state.getString("screen", Screen.HOME.name()));
+        screen = Screen.valueOf(state.getString("screen", Screen.CATALOGUE.name()));
         year = state.getString("year");
+        subject = state.getString("subject");
+        topicSubject = state.getString("topicSubject");
+        topic = state.getString("topic");
         if (screen == Screen.HOME || screen == Screen.CATALOGUE) {
             return;
         }
 
         String gameId = state.getString("game");
         for (GameDefinition entry : games) {
-            if (entry.id.equals(gameId) && entry.year.equals(year)) {
+            if (entry.id.equals(gameId)) {
                 game = entry;
                 break;
             }
         }
         if (game == null) {
-            screen = year == null ? Screen.HOME : Screen.CATALOGUE;
+            screen = Screen.CATALOGUE;
             return;
         }
         if (screen == Screen.INSTRUCTIONS) {
@@ -161,6 +169,9 @@ public final class MainActivity extends Activity {
         state.putString("screen", screen.name());
         if (selectedChild != null) state.putString("childId", selectedChild.id);
         state.putString("year", year);
+        state.putString("subject", subject);
+        state.putString("topicSubject", topicSubject);
+        state.putString("topic", topic);
         if (game != null) {
             state.putString("game", game.id);
             state.putInt("gameRevision", game.revision);
@@ -180,12 +191,12 @@ public final class MainActivity extends Activity {
     @Override
     @SuppressWarnings("deprecation")
     public void onBackPressed() {
-        if (screen == Screen.CHOOSER || (BuildConfig.DEBUG && screen == Screen.HOME)) {
+        if (screen == Screen.CHOOSER || (BuildConfig.DEBUG && screen == Screen.CATALOGUE)) {
             super.onBackPressed();
-        } else if (screen == Screen.HOME) {
+        } else if (screen == Screen.HOME || screen == Screen.CATALOGUE) {
             changeChild();
         } else {
-            show(screen == Screen.CATALOGUE ? Screen.HOME : Screen.CATALOGUE);
+            show(Screen.CATALOGUE);
         }
     }
 
@@ -256,23 +267,22 @@ public final class MainActivity extends Activity {
                 }
                 if (children.isEmpty()) body(content, "Demande à un parent d’ajouter un enfant.");
                 for (Child child : children) {
-                    button(content, child.name, 30, true, () -> { selectedChild = child; show(Screen.HOME); });
+                    button(content, child.name, 30, true, () -> { selectedChild = child; show(Screen.CATALOGUE); });
                     button(content, "Supprimer " + child.name, 18, false,
                             () -> parentCheck(() -> confirmDeletion(child)));
                 }
                 button(content, "Ajouter un enfant", 24, false, () -> parentCheck(this::addChild));
                 break;
             case HOME:
-                heading(content, "À toi de jouer !", 42);
-                body(content, "Choisis ton année");
-                yearButton(content, "P1");
-                yearButton(content, "P3");
-                break;
             case CATALOGUE:
-                heading(content, year + " · Les jeux", 38);
+                heading(content, "Les jeux", 38);
+                renderFilters(content);
+                int count = 0;
                 for (GameDefinition entry : games) {
-                    if (entry.year.equals(year)) {
+                    if (matchesFilters(entry)) {
+                        count++;
                         LinearLayout card = card(content, Color.WHITE);
+                        body(card, entry.year);
                         body(card, entry.objective);
                         body(card, entry.classificationLabel);
                         button(card, entry.title, 26, true, () -> {
@@ -283,7 +293,7 @@ public final class MainActivity extends Activity {
                         });
                     }
                 }
-                button(content, "Changer d’année", 20, false, () -> show(Screen.HOME));
+                if (count == 0) body(content, "Aucun jeu pour ce choix.");
                 break;
             case INSTRUCTIONS:
                 heading(content, game.title, 38);
@@ -314,7 +324,6 @@ public final class MainActivity extends Activity {
         game = null;
         round = null;
         matchingRound = null;
-        year = null;
         show(Screen.CHOOSER);
     }
 
@@ -421,10 +430,71 @@ public final class MainActivity extends Activity {
                 }).show();
     }
 
-    private void yearButton(LinearLayout content, String selectedYear) {
-        button(content, selectedYear, 32, true, () -> {
-            year = selectedYear;
-            show(Screen.CATALOGUE);
+    private boolean matchesFilters(GameDefinition entry) {
+        if (year != null && !year.equals(entry.year)) return false;
+        boolean subjectMatch = subject == null;
+        boolean topicMatch = topic == null;
+        for (GameDefinition.Classification classification : entry.classifications) {
+            if (classification.subject.equals(subject)) subjectMatch = true;
+            if (classification.subject.equals(topicSubject) && classification.topics.contains(topic)) {
+                topicMatch = true;
+            }
+        }
+        return subjectMatch && topicMatch;
+    }
+
+    private void renderFilters(LinearLayout content) {
+        Map<String, String> subjects = new LinkedHashMap<>();
+        Map<String, String> topics = new LinkedHashMap<>();
+        for (GameDefinition entry : games) {
+            for (GameDefinition.Classification item : entry.classifications) {
+                subjects.put(item.subject, item.subjectLabel);
+                for (int i = 0; i < item.topics.size(); i++) {
+                    topics.put(item.subject + "\n" + item.topics.get(i), item.topicLabels.get(i));
+                }
+            }
+        }
+        button(content, "Année : " + (year == null ? "Toutes" : year), 20, false, () -> {
+            String[] options = {"Toutes les années", "P1", "P3"};
+            new AlertDialog.Builder(this).setTitle("Année").setItems(options, (dialog, index) -> {
+                year = index == 0 ? null : options[index];
+                render();
+            }).show();
+        });
+        button(content, "Matière : " + (subject == null ? "Toutes" : subjects.get(subject)), 20, false, () -> {
+            List<String> keys = new ArrayList<>(subjects.keySet());
+            List<String> labels = new ArrayList<>();
+            labels.add("Toutes les matières");
+            labels.addAll(subjects.values());
+            new AlertDialog.Builder(this).setTitle("Matière").setItems(labels.toArray(new String[0]), (dialog, index) -> {
+                subject = index == 0 ? null : keys.get(index - 1);
+                render();
+            }).show();
+        });
+        String topicKey = topicSubject + "\n" + topic;
+        button(content, "Sujet : " + (topic == null ? "Tous" : topics.get(topicKey)), 20, false, () -> {
+            List<String> keys = new ArrayList<>(topics.keySet());
+            List<String> labels = new ArrayList<>();
+            labels.add("Tous les sujets");
+            labels.addAll(topics.values());
+            new AlertDialog.Builder(this).setTitle("Sujet").setItems(labels.toArray(new String[0]), (dialog, index) -> {
+                if (index == 0) {
+                    topicSubject = null;
+                    topic = null;
+                } else {
+                    String[] parts = keys.get(index - 1).split("\n", 2);
+                    topicSubject = parts[0];
+                    topic = parts[1];
+                }
+                render();
+            }).show();
+        });
+        button(content, "Effacer les filtres", 20, false, () -> {
+            year = null;
+            subject = null;
+            topicSubject = null;
+            topic = null;
+            render();
         });
     }
 
