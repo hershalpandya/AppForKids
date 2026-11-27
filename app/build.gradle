@@ -1,5 +1,5 @@
 plugins {
-    id 'com.android.application' version '8.13.2'
+    id 'com.android.application' version '9.5.3'
 }
 
 def customBuildDirectory = providers.gradleProperty('appforkidsReleaseBuildDir')
@@ -38,7 +38,7 @@ android {
     sourceSets {
         main.assets.srcDirs = []
         debug.assets.srcDir 'src/main/assets'
-        release.assets.srcDir releaseAssets
+        release.assets.srcDir releaseAssets.get().asFile
     }
 
     signingConfigs {
