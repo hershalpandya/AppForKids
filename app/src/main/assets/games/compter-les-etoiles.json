@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "id": "compter-les-etoiles",
+  "revision": 1,
+  "year": "P1",
+  "type": "tap-to-choose",
+  "title": "Les étoiles à compter",
+  "objective": "Compte des groupes de 1 à 10 étoiles.",
+  "instructions": "Compte les étoiles. Touche le bon nombre.",
+  "workedExample": "Exemple : ★ ★ ★ = 3",
+  "questions": [
+    {
+      "prompt": "Combien d’étoiles ?",
+      "visualRows": ["★ ★ ★ ★"],
+      "choices": ["3", "4", "5"],
+      "answer": "4",
+      "correctFeedback": "Bravo, il y a 4 étoiles !",
+      "retryFeedback": "Compte chaque étoile une fois, puis réessaie."
+    },
+    {
+      "prompt": "Combien d’étoiles ?",
+      "visualRows": ["★ ★ ★", "★ ★ ★"],
+      "choices": ["5", "7", "6"],
+      "answer": "6",
+      "correctFeedback": "Bravo, il y a 6 étoiles !",
+      "retryFeedback": "Compte la première ligne, puis continue sur la suivante."
+    },
+    {
+      "prompt": "Combien d’étoiles ?",
+      "visualRows": ["★ ★ ★ ★", "★ ★ ★ ★"],
+      "choices": ["8", "7", "9"],
+      "answer": "8",
+      "correctFeedback": "Bravo, il y a 8 étoiles !",
+      "retryFeedback": "Montre chaque étoile du doigt en comptant les deux lignes."
+    }
+  ]
+}

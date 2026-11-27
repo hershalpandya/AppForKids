@@ -1,0 +1,35 @@
+plugins {
+    id 'com.android.application' version '8.13.2'
+}
+
+android {
+    namespace 'be.hershalpandya.appforkids'
+    compileSdk 35
+    buildToolsVersion '35.0.0'
+
+    defaultConfig {
+        applicationId 'be.hershalpandya.appforkids'
+        minSdk 23
+        targetSdk 35
+        versionCode 1
+        versionName '1.0'
+    }
+
+    signingConfigs {
+        familyOrCi {
+            def keyPath = System.getenv('APPFORKIDS_KEYSTORE')
+            if (keyPath) {
+                storeFile rootProject.file(keyPath)
+            }
+            storePassword System.getenv('APPFORKIDS_STORE_PASSWORD')
+            keyAlias System.getenv('APPFORKIDS_KEY_ALIAS')
+            keyPassword System.getenv('APPFORKIDS_KEY_PASSWORD')
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.familyOrCi
+        }
+    }
+}
