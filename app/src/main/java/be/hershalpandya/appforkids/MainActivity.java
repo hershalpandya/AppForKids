@@ -33,14 +33,12 @@ public final class MainActivity extends Activity {
     private static final int STAR = 0xff7e4503;
 
     private enum Screen { HOME, CATALOGUE, INSTRUCTIONS, ROUND, COMPLETE }
-    private enum Feedback { NONE, RETRY, CORRECT }
 
     private List<GameDefinition> games;
     private Screen screen = Screen.HOME;
-    private Feedback feedback = Feedback.NONE;
     private String year;
     private GameDefinition game;
-    private int questionIndex;
+    private GameRound round;
     private ScrollView scroll;
 
     @Override
@@ -65,8 +63,11 @@ public final class MainActivity extends Activity {
                     break;
                 }
             }
-            questionIndex = savedState.getInt("question");
-            feedback = Feedback.valueOf(savedState.getString("feedback", Feedback.NONE.name()));
+            if (game != null) {
+                String feedback = savedState.getString("feedback", GameRound.Feedback.NONE.name());
+                round = new GameRound(game, savedState.getInt("question"),
+                        GameRound.Feedback.valueOf(feedback));
+            }
         }
         render();
     }
@@ -79,8 +80,10 @@ public final class MainActivity extends Activity {
         if (game != null) {
             state.putString("game", game.id);
         }
-        state.putInt("question", questionIndex);
-        state.putString("feedback", feedback.name());
+        if (round != null) {
+            state.putInt("question", round.questionIndex());
+            state.putString("feedback", round.feedback().name());
+        }
     }
 
     @Override
@@ -100,7 +103,7 @@ public final class MainActivity extends Activity {
             getWindow().setNavigationBarColor(Color.TRANSPARENT);
         } else {
             getWindow().setStatusBarColor(PAPER);
-            getWindow().setNavigationBarColor(INK);
+            getWindow().setNavigationBarColor(Build.VERSION.SDK_INT >= 26 ? PAPER : INK);
         }
     }
 
@@ -110,6 +113,10 @@ public final class MainActivity extends Activity {
     }
 
     private void render() {
+        render(false);
+    }
+
+    private void render(boolean announceFeedback) {
         LinearLayout content = page();
         switch (screen) {
             case HOME:
@@ -128,6 +135,7 @@ public final class MainActivity extends Activity {
                         body(card, entry.objective);
                         button(card, entry.title, 26, true, () -> {
                             game = entry;
+                            round = null;
                             show(Screen.INSTRUCTIONS);
                         });
                     }
@@ -143,7 +151,7 @@ public final class MainActivity extends Activity {
                 catalogueButton(content);
                 break;
             case ROUND:
-                round(content);
+                renderRound(content, announceFeedback);
                 break;
             case COMPLETE:
                 heading(content, "Partie terminée !", 42);
@@ -155,14 +163,14 @@ public final class MainActivity extends Activity {
     }
 
     private void startRound() {
-        questionIndex = 0;
-        feedback = Feedback.NONE;
+        round = new GameRound(game);
         show(Screen.ROUND);
     }
 
-    private void round(LinearLayout content) {
-        GameDefinition.Question question = game.questions.get(questionIndex);
-        body(content, getString(R.string.question_progress, questionIndex + 1, game.questions.size()));
+    private void renderRound(LinearLayout content, boolean announceFeedback) {
+        GameDefinition.Question question = round.question();
+        body(content, getString(R.string.question_progress,
+                round.questionIndex() + 1, round.questionCount()));
         heading(content, question.prompt, 34);
         LinearLayout visual = card(content, PALE_YELLOW);
         for (String row : question.visualRows) {
@@ -171,12 +179,15 @@ public final class MainActivity extends Activity {
             visual.addView(stars);
         }
 
-        if (feedback != Feedback.CORRECT) {
+        if (!round.isAnswered()) {
             LinearLayout choices = new LinearLayout(this);
             choices.setOrientation(LinearLayout.HORIZONTAL);
             add(content, choices, 14);
             for (String choice : question.choices) {
-                Button button = makeButton(choice, 32, false, () -> answer(question, choice));
+                Button button = makeButton(choice, 32, false, () -> {
+                    round.answer(choice);
+                    render(true);
+                });
                 LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, -2, 1);
                 if (choices.getChildCount() > 0) {
                     params.setMarginStart(dp(10));
@@ -185,35 +196,18 @@ public final class MainActivity extends Activity {
             }
         }
 
-        if (feedback == Feedback.RETRY) {
-            feedback(content, question.retryFeedback);
-        } else if (feedback == Feedback.CORRECT) {
-            feedback(content, question.correctFeedback);
-            boolean lastQuestion = questionIndex + 1 == game.questions.size();
-            button(content, lastQuestion ? "Terminer" : "Suivant", 26, true, () -> {
-                if (lastQuestion) {
-                    show(Screen.COMPLETE);
-                } else {
-                    questionIndex++;
-                    feedback = Feedback.NONE;
-                    show(Screen.ROUND);
-                }
-            });
+        String message = round.feedbackMessage();
+        if (message != null) {
+            body(card(content, PALE_BLUE), message);
+            if (announceFeedback) {
+                scroll.announceForAccessibility(message);
+            }
+        }
+        if (round.isAnswered()) {
+            button(content, round.isLastQuestion() ? "Terminer" : "Suivant", 26, true,
+                    () -> show(round.advanceToNextQuestion() ? Screen.ROUND : Screen.COMPLETE));
         }
         catalogueButton(content);
-    }
-
-    private void answer(GameDefinition.Question question, String choice) {
-        boolean correct = question.answer.equals(choice);
-        feedback = correct ? Feedback.CORRECT : Feedback.RETRY;
-        render();
-
-        String message = correct ? question.correctFeedback : question.retryFeedback;
-        scroll.announceForAccessibility(message);
-    }
-
-    private void feedback(LinearLayout content, String message) {
-        body(card(content, PALE_BLUE), message);
     }
 
     private void catalogueButton(LinearLayout content) {

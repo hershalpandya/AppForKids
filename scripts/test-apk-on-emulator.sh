@@ -14,7 +14,7 @@ adb start-server
 avdmanager create avd --force --name "$avd" --package "$image" --device pixel_tablet \
     <<< 'no' > "$reports/avd.log" 2>&1
 
-"$emulator" -avd "$avd" -port 5554 -accel on -no-window -gpu swiftshader_indirect \
+"$emulator" -avd "$avd" -port 5554 -accel on -no-window -gpu swiftshader \
     -no-snapshot -no-audio -no-boot-anim > "$reports/emulator.log" 2>&1 &
 emulator_pid=$!
 
