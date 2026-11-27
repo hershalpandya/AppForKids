@@ -103,7 +103,7 @@ public final class MainActivity extends Activity {
             getWindow().setNavigationBarColor(Color.TRANSPARENT);
         } else {
             getWindow().setStatusBarColor(PAPER);
-            getWindow().setNavigationBarColor(Build.VERSION.SDK_INT >= 26 ? PAPER : INK);
+            getWindow().setNavigationBarColor(Build.VERSION.SDK_INT >= 27 ? PAPER : INK);
         }
     }
 

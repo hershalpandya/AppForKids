@@ -9,8 +9,9 @@ image=${ANDROID_TABLET_IMAGE:?Set ANDROID_TABLET_IMAGE to the installed system i
 emulator="${ANDROID_HOME:?Set ANDROID_HOME}/emulator/emulator"
 export PATH="$ANDROID_HOME/platform-tools:$PATH"
 export ANDROID_SERIAL=emulator-5554
+export ANDROID_AVD_HOME="$PWD/build/avd-home"
 
-mkdir -p "$reports"
+mkdir -p "$reports" "$ANDROID_AVD_HOME"
 adb start-server
 avdmanager create avd --force --name "$avd" --package "$image" --device pixel_tablet \
     --path "$avd_dir" <<< 'no' > "$reports/avd.log" 2>&1
