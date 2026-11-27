@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-apk=${1:?Usage: test-apk-on-emulator.sh RELEASE_APK [PREVIEW_APK]}
+apk=${1:?Usage: test-apk-on-emulator.sh RELEASE_APK [PREVIEW_APK] [UPDATE_APK]}
 preview_apk=${2:-}
+update_apk=${3:-}
 reports=build/ci
 avd=appforkids-tablet
 avd_dir="$PWD/build/$avd.avd"
@@ -91,4 +92,8 @@ python3 scripts/smoke_test.py "$reports"
 if [[ -n "$preview_apk" ]]; then
     adb install "$preview_apk" 2>&1 | tee "$reports/preview-install.log"
     python3 scripts/worksheet_smoke_test.py "$apk" 2>&1 | tee "$reports/worksheet-smoke.log"
+fi
+
+if [[ -n "$update_apk" ]]; then
+    python3 scripts/release_smoke_test.py "$update_apk" 2>&1 | tee "$reports/release-smoke.log"
 fi

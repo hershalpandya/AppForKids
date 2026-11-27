@@ -2,6 +2,25 @@ plugins {
     id 'com.android.application' version '8.13.2'
 }
 
+def customBuildDirectory = providers.gradleProperty('appforkidsReleaseBuildDir')
+if (customBuildDirectory.present) {
+    layout.buildDirectory = file(customBuildDirectory.get())
+}
+
+def releaseAssets = layout.buildDirectory.dir('generated/approved-release-assets')
+def releaseSelection = providers.gradleProperty('appforkidsReleaseSelection')
+
+def prepareReleaseCatalogue = tasks.register('prepareReleaseCatalogue', Exec) {
+    outputs.dir(releaseAssets)
+    // The local approvals directory is outside the checkout and may change between builds.
+    outputs.upToDateWhen { false }
+    commandLine 'python3', rootProject.file('scripts/release.py'), 'package-catalogue',
+            releaseAssets.get().asFile
+    if (releaseSelection.present) {
+        args '--selection', releaseSelection.get()
+    }
+}
+
 android {
     namespace 'be.hershalpandya.appforkids'
     compileSdk 35
@@ -11,8 +30,15 @@ android {
         applicationId 'be.hershalpandya.appforkids'
         minSdk 23
         targetSdk 35
-        versionCode 1
-        versionName '1.0'
+        def appVersion = providers.gradleProperty('appforkidsVersionCode').getOrElse('1').toInteger()
+        versionCode appVersion
+        versionName "${appVersion}.0"
+    }
+
+    sourceSets {
+        main.assets.srcDirs = []
+        debug.assets.srcDir 'src/main/assets'
+        release.assets.srcDir releaseAssets
     }
 
     signingConfigs {
@@ -39,4 +65,8 @@ android {
             signingConfig signingConfigs.familyOrCi
         }
     }
+}
+
+tasks.matching { it.name == 'preReleaseBuild' }.configureEach {
+    dependsOn prepareReleaseCatalogue
 }

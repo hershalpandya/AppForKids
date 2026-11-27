@@ -22,7 +22,7 @@ Use JDK 17 and the Android SDK from the [README](../README.md). Put the SDK's pl
 bash scripts/preview-worksheet.sh --build "/path/to/private-worksheets/game-draft.json"
 ```
 
-With the preview APK already installed, omit `--build` to reload a corrected file. The helper copies one game definition into private storage in the separate preview app. The family APK bundles its own catalogue and uses the same game parser and round rules.
+With the preview APK already installed, omit `--build` to reload a corrected file. The helper copies one game definition into private storage in the separate preview app. The family APK bundles its own catalogue and uses the same game parser and round rules. After reviewing the final preview, follow the [approval and release commands](../README.md#approve-and-release-a-worksheet-game).
 
 ## Write a game definition
 

@@ -51,7 +51,10 @@ jobs:
           printf 'ANDROID_HOME=%s\nANDROID_SDK_ROOT=%s\n' "$ANDROID_HOME" "$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
           printf '%s\n' "$tools_dir" >> "$GITHUB_PATH"
 
-      - name: Build preview and verify CI-signed release APK
+      - name: Check approval and release validation
+        run: python3 -m unittest discover -s tests -p test_release.py
+
+      - name: Build the preview and both CI-signed releases
         run: |
           export APPFORKIDS_KEYSTORE="$RUNNER_TEMP/appforkids-ci.p12"
           export APPFORKIDS_KEY_ALIAS=appforkids-ci
@@ -61,7 +64,23 @@ jobs:
             -storepass:env APPFORKIDS_STORE_PASSWORD -alias "$APPFORKIDS_KEY_ALIAS" \
             -keyalg RSA -keysize 2048 -validity 365 -dname 'CN=AppForKids CI'
           ./gradlew --no-daemon :app:assembleRelease :app:lintRelease :app:assembleDebug 2>&1 | tee build/ci/gradle.log
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify app/build/outputs/apk/release/app-release.apk
+          baseline=app/build/outputs/apk/release/app-release.apk
+          approvals="$RUNNER_TEMP/appforkids-approvals"
+          python3 scripts/release.py approve --store "$approvals" tests/fixtures/les-jetons-a-reunir.json
+          python3 scripts/release.py approve --store "$approvals" tests/fixtures/compter-les-etoiles-corrige.json
+          python3 - "$RUNNER_TEMP/jetons-revision-3.json" <<'PYTHON'
+          import json
+          import sys
+          from pathlib import Path
+          game = json.loads(Path("tests/fixtures/les-jetons-a-reunir.json").read_text(encoding="utf-8"))
+          game.update(revision=3, title="Les jetons à réunir (autre version)")
+          Path(sys.argv[1]).write_text(json.dumps(game, ensure_ascii=False), encoding="utf-8")
+          PYTHON
+          python3 scripts/release.py approve --store "$approvals" "$RUNNER_TEMP/jetons-revision-3.json"
+          python3 scripts/release.py build --store "$approvals" \
+            --game les-jetons-a-reunir@2 --game compter-les-etoiles@2 \
+            --version-code 2 --previous-apk "$baseline" --output build/ci/app-release-update.apk \
+            2>&1 | tee build/ci/gradle-update.log
 
       - name: Enable KVM for the hosted runner
         run: |
@@ -69,17 +88,25 @@ jobs:
           sudo chmod a+rw /dev/kvm
           "$ANDROID_HOME/emulator/emulator" -accel-check
 
-      - name: Play the starter and worksheet preview on an offline tablet
+      - name: Play the starter, preview and in-place update on an offline tablet
         run: |
           bash scripts/test-apk-on-emulator.sh \
             app/build/outputs/apk/release/app-release.apk \
-            app/build/outputs/apk/debug/app-debug.apk
+            app/build/outputs/apk/debug/app-debug.apk \
+            build/ci/app-release-update.apk
 
-      - name: Upload tested APK
+      - name: Upload tested starter APK
         uses: actions/upload-artifact@v4
         with:
           name: appforkids-ci-tested-apk
           path: app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+
+      - name: Upload tested update APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: appforkids-ci-tested-update-apk
+          path: build/ci/app-release-update.apk
           if-no-files-found: error
 
       - name: Upload failure diagnostics
