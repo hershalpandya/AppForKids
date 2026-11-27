@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 2,
+  "id": "les-mots-de-meme-sens",
+  "revision": 2,
+  "year": "P3",
+  "type": "matching",
+  "title": "Les mots de même sens",
+  "objective": "Associe des mots qui veulent dire presque la même chose.",
+  "instructions": "Touche un mot à gauche, puis le mot de même sens à droite. Ces mots sont des synonymes.",
+  "workedExample": "Exemple : vite ↔ rapidement",
+  "completionMessage": "Bravo, tu as retrouvé toutes les paires de synonymes !",
+  "pairs": [
+    {
+      "left": "content",
+      "right": "heureux",
+      "correctFeedback": "Oui ! Sami est content : il est heureux.",
+      "retryFeedback": "Sami est content de gagner. Quel mot dit aussi qu’il a de la joie ?"
+    },
+    {
+      "left": "commencer",
+      "right": "débuter",
+      "correctFeedback": "Oui ! Le spectacle va commencer, il va débuter.",
+      "retryFeedback": "Les acteurs entrent en scène. Quel mot peut remplacer « commencer » ?"
+    },
+    {
+      "left": "joli",
+      "right": "beau",
+      "correctFeedback": "Oui ! Ce dessin est joli, il est beau.",
+      "retryFeedback": "Ce dessin est joli. Quel mot dit aussi qu’il est agréable à regarder ?"
+    }
+  ],
+  "vocabularyVersion": 1,
+  "classification": [
+    {
+      "subject": "mathematics",
+      "topics": [
+        "counting"
+      ]
+    },
+    {
+      "subject": "french",
+      "topics": [
+        "synonyms"
+      ]
+    }
+  ]
+}

@@ -16,6 +16,8 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 STARTER = REPO / "app/src/main/assets/games"
 STARTER_APPROVALS = REPO / "app/starter-approvals.json"
+VOCABULARY = REPO / "app/src/main/assets/classification-v1.json"
+VOCABULARY_SHA256 = "c4e6e36b10b81ae08d309ef1383aed936f243cbc28a461a484225d275d741e4d"
 GAME_ID = r"[a-z0-9]+(?:-[a-z0-9]+)*"
 SELECTOR = re.compile(rf"({GAME_ID})@([1-9][0-9]*)")
 PACKAGE = "be.hershalpandya.appforkids"
@@ -73,15 +75,51 @@ def text_array(value, location, minimum):
         nonempty(item, f"{location}[{index}]")
 
 
+def classification_labels(game, source):
+    if hashlib.sha256(VOCABULARY.read_bytes()).hexdigest() != VOCABULARY_SHA256:
+        raise ReleaseError("classification-v1.json changed; retain version 1 and add a reviewed vocabulary version")
+    vocabulary = read_json(VOCABULARY)
+    if game["schemaVersion"] == 1:
+        classification = vocabulary["legacy"].get(f"{game['id']}@{game['revision']}", [])
+    else:
+        if type(game.get("vocabularyVersion")) is not int or game["vocabularyVersion"] != 1:
+            raise ReleaseError(f"{source}: unsupported vocabularyVersion; expected 1")
+        classification = game.get("classification")
+        if not isinstance(classification, list) or not classification:
+            raise ReleaseError(f"{source}: classification must contain at least one subject")
+    labels, seen = [], set()
+    for entry in classification:
+        fields(entry, {"subject", "topics"}, set(), f"{source}: classification")
+        subject = entry["subject"]
+        if not isinstance(subject, str) or subject not in vocabulary["subjects"]:
+            raise ReleaseError(f"{source}: unknown subject {subject!r}")
+        if subject in seen:
+            raise ReleaseError(f"{source}: duplicate subject {subject!r}")
+        seen.add(subject)
+        item = vocabulary["subjects"][subject]
+        topics = entry["topics"]
+        text_array(topics, f"{source}: topics for {subject}", 1)
+        if len(set(topics)) != len(topics):
+            raise ReleaseError(f"{source}: duplicate topic for {subject}")
+        for topic in topics:
+            if topic not in item["topics"]:
+                raise ReleaseError(f"{source}: unknown or mismatched topic {topic!r} for {subject}")
+        labels.append(item["label"] + " → " + ", ".join(item["topics"][topic] for topic in topics))
+    return "; ".join(labels) if labels else "À classer"
+
+
 def validate_game(game, source):
     visual_hint = "use visualRows for text or symbols"
     text_fields = {"title", "objective", "instructions", "workedExample"}
+    version = game.get("schemaVersion") if isinstance(game, dict) else None
+    if type(version) is not int or version not in (1, 2):
+        raise ReleaseError(f"{source}: unsupported schemaVersion; expected 1 or 2")
+    classification_fields = {"vocabularyVersion", "classification"} if version == 2 else set()
     fields(
-        game, text_fields | {"schemaVersion", "id", "revision", "year", "type"},
+        game, text_fields | classification_fields | {"schemaVersion", "id", "revision", "year", "type"},
         {"completionMessage", "questions", "pairs"}, source, unsupported_hint=visual_hint,
     )
-    if type(game["schemaVersion"]) is not int or game["schemaVersion"] != 1:
-        raise ReleaseError(f"{source}: unsupported schemaVersion; expected 1")
+    classification_labels(game, source)
     if not isinstance(game["id"], str) or not re.fullmatch(GAME_ID, game["id"]):
         raise ReleaseError(f"{source}: id must use lowercase letters or digits separated by hyphens")
     if game["id"] == "catalogue":
@@ -198,7 +236,7 @@ def approve(store, draft):
         except FileExistsError:
             if read_json(target) != approval:
                 raise ReleaseError(f"{identifier} already has an approval; increase the revision")
-    print(f"Approved {identifier}")
+    print(f"Approved {identifier} — {classification_labels(game, draft)}")
 
 
 def release_games(store, identifiers):
@@ -239,6 +277,8 @@ def package_catalogue(output, selection):
             store = Path(store_value)
     games = release_games(store, identifiers)
 
+    output.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(VOCABULARY, output / VOCABULARY.name)
     assets = output / "games"
     assets.mkdir(parents=True, exist_ok=True)
     filenames = [f"{game_id}.json" for game_id in games]
@@ -340,7 +380,7 @@ def main():
     try:
         if args.command == "validate":
             game = validate_game(read_json(args.draft), args.draft)
-            print(f"Validated {game['id']}@{game['revision']}")
+            print(f"Validated {game['id']}@{game['revision']} — {classification_labels(game, args.draft)}")
         elif args.command == "approve":
             approve(args.store, args.draft)
         elif args.command == "build":
