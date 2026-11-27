@@ -43,4 +43,4 @@ Use the same key and app ID for future family releases. Increase `versionCode` i
 3. In the first question, try **3**, then **4**. Check the retry hint and the correct answer feedback. Complete the round, replay and return to the catalogue. Check that the text and controls are comfortable to use.
 4. Record the successful first install in [issue #2](https://github.com/hershalpandya/AppForKids/issues/2), including the tablet model, Android version and APK version. This check requires the family tablet.
 
-GitHub Actions creates a separate, temporary CI signing key per run. Use the APK from the family build for tablet installations and updates. The CI workflow installs the exact APK it uploads and plays through the P1 round on a headless Pixel Tablet emulator with airplane mode on and Wi-Fi and mobile data off.
+GitHub Actions creates a separate, temporary CI signing key per run. Use the APK from the family build for tablet installations and updates. The CI workflow installs the exact APK it uploads and plays through the P1 round on a headless Pixel Tablet emulator with airplane mode on and Wi-Fi off.
