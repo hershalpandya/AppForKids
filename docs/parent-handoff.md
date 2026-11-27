@@ -151,7 +151,7 @@ The build checks the Android app ID, signing certificate and version code. Keep 
 
 For a first setup, install the family baseline from Files and open both starters before installing the update. Keep the app installed when you open the update APK. Use the original family key for both APKs, including when checking the sample on the physical tablet.
 
-After the update, turn on airplane mode and make sure Wi-Fi is off. Close and reopen **Petits Pas**. Check that the new activity card appears once under its intended year and play it to the end with the approved answer key. For the sample, open **Les rangées à comparer** under **P1** and answer **En haut** then **En bas**. Play **Les étoiles à compter** through one round. Clear or change the year filter to **P3** and play **Les mots de même sens** through one round. Try a mistake and retry in each starter. If you selected other approved activities to retain, check that each appears under its year and opens offline. Check that the text and buttons are comfortable to use on the actual tablet.
+After the update, turn on airplane mode and make sure Wi-Fi is off. Close and reopen **Petits Pas**. Select a child, or use **Ajouter un enfant** and the parent check to create a local profile first. The separate worksheet preview does not use profiles. Check that the new activity card appears once under its intended year and play it to the end with the approved answer key. For the sample, open **Les rangées à comparer** under **P1** and answer **En haut** then **En bas**. Play **Les étoiles à compter** through one round. Clear or change the year filter to **P3** and play **Les mots de même sens** through one round. Try a mistake and retry in each starter. If you selected other approved activities to retain, check that each appears under its year and opens offline. Check that the text and buttons are comfortable to use on the actual tablet.
 
 ### Physical tablet verification record
 
@@ -219,13 +219,13 @@ Use `adb devices` to find the clean emulator’s serial, such as `emulator-5554`
 adb -s EMULATOR_SERIAL install "$rehearsal_dir/appforkids-v1.apk"
 ```
 
-Turn on airplane mode and make sure Wi-Fi is off. Open **Petits Pas**, play both starters and confirm the sample card is absent from **P1**. Keep the baseline installed and install the update over it while the emulator stays offline.
+Turn on airplane mode and make sure Wi-Fi is off. Open **Petits Pas**, add or select a child, play both starters and confirm the sample card is absent from **P1**. Keep the baseline installed and install the update over it while the emulator stays offline.
 
 ```bash
 adb -s EMULATOR_SERIAL install -r "$rehearsal_dir/appforkids-v2.apk"
 ```
 
-Reopen **Petits Pas** while offline. Confirm that **Les rangées à comparer** appears once under **P1** and play it with **En haut** then **En bas**. Confirm the P1 and P3 starters still open. To practise restoring the starters-only catalogue, build version 3 against version 2 with the rehearsal key and omit the `--game` selection. For the physical tablet, use the family-signed APKs and follow the tablet installation steps above.
+Reopen **Petits Pas** while offline and select a child. Confirm that **Les rangées à comparer** appears once under **P1** and play it with **En haut** then **En bas**. Confirm the P1 and P3 starters still open. To practise restoring the starters-only catalogue, build version 3 against version 2 with the rehearsal key and omit the `--game` selection. For the physical tablet, use the family-signed APKs and follow the tablet installation steps above.
 
 ## Find CI results and diagnostic files
 
