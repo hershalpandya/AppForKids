@@ -10,7 +10,7 @@
 
 Page 1 supplies a worked example and three complete items. Item D has a missing word and answer. Ask for its full sentence and its column entry before using it. The three complete items form the round. Keep the worksheet, extraction and answer key on the authoring side. The family APK contains the reviewed game definition.
 
-The P3 *Traiter/utiliser les unités lexicales* section identifies synonym recognition between written words on p. 80. Under *Utiliser le lexique*, p. 81 calls for replacing a word with one of the same meaning. Each answer here preserves the relevant meaning and part of speech in its worksheet sentence. The activity practises recognizing the relationship, with the substitution shown in the success feedback. [Fédération Wallonie-Bruxelles, Référentiel de français et langues anciennes, pp. 80–81](https://www.enseignement.be/fileadmin/portail_age/uploads/parcours_apprentissage/maternel_primaire_ordinaire/Organisation/Contenus_apprentissages_Maternel_Primaire/Referentiels/2022_REF_Francais-FRALA.pdf#page=80)
+The P3 *Traiter/utiliser les unités lexicales* section identifies synonym recognition between written words on p. 80. Under *Utiliser le lexique*, p. 81 calls for replacing a word with one of the same meaning. Each answer here preserves the relevant meaning and part of speech in its worksheet sentence. The activity practises recognizing the relationship, with the substitution shown in the success feedback. [Fédération Wallonie-Bruxelles, Référentiel de français et langues anciennes, pp. 80–81](https://ifpc.cfwb.be/v5/documents/tc/refFRALA.pdf#page=80)
 
 | Page 1 item | Answer and success feedback | Retry hint in the approved starter |
 | --- | --- | --- |
@@ -38,6 +38,6 @@ python3 scripts/release.py approve --store "$HOME/AppForKids-private/approved" \
   tests/fixtures/les-mots-de-meme-sens-corrige.json
 ```
 
-Approval prints `Approved les-mots-de-meme-sens@2`. Selecting it replaces the same game ID in a release. Selecting no revision for that ID uses the bundled revision 1. The automated worksheet preview plays revision 2 and checks its revised hint offline. The approval and packaging test checks that the exact reviewed JSON stays under the same ID alongside the P1 starter.
+Approval prints `Approved les-mots-de-meme-sens@2`. Selecting it replaces the same game ID in a release. Leaving the ID out of the release selection uses the bundled revision 1. The automated checks play revision 2 offline in both the worksheet preview and a signed in-place update, and compare the definition in the signed APK with the reviewed fixture.
 
 For authoring fields and runtime changes, see the [game mechanics extension guide](game-mechanics.md).
