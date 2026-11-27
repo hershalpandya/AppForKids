@@ -1,6 +1,6 @@
 # From a worksheet to the family tablet
 
-Use this guide to make a game from schoolwork, review it on your computer and install a signed update on the Android tablet. For a practice run, use the two invented pages and follow the [sample review](samples/parent-handoff/review.md). Use a clean emulator and a throwaway signing key for that rehearsal.
+Use this guide to make a game from schoolwork, review it on your computer and install a signed update on the Android tablet. For a practice run, use the two invented pages and follow the sample review and emulator rehearsal. [Sample review](samples/parent-handoff/review.md) · [Emulator rehearsal](#rehearse-the-signed-update-on-a-clean-emulator)
 
 ## Set up the computer once
 
@@ -16,7 +16,7 @@ sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
 sdkmanager --licenses
 ```
 
-4. In Android Studio’s **Device Manager**, create and start a Pixel Tablet virtual device with an API 35 image for your computer’s processor. Wait for its home screen. If `adb devices` lists multiple devices, set `ANDROID_SERIAL` to the serial of your emulator. Use the emulator for reviewing drafts. [Android virtual device setup](https://developer.android.com/studio/run/managing-avds)
+4. In Android Studio’s **Device Manager**, create and start a Pixel Tablet virtual device with an API 35 image for your computer’s processor. Wait for its home screen. Run `adb devices` and find the emulator serial, such as `emulator-5554`. Before running the preview commands, set `ANDROID_SERIAL` with `export ANDROID_SERIAL=emulator-5554`, using your emulator’s serial. [Android virtual device setup](https://developer.android.com/studio/run/managing-avds)
 
 ## Prepare the worksheets and ask for a draft
 
@@ -34,7 +34,14 @@ Compare the source review with the pages. For the sample, the agent can use page
 
 Ask the agent to open **AppForKids · Aperçu** on the emulator and leave the draft at its instructions screen. From the app’s home screen, check for **Aperçu du brouillon**, choose the target year and open the draft by title. Read the example, tap **Jouer** and play every question. Try a wrong answer and retry. Check the feedback against the key. Finish the round, replay and return to the catalogue.
 
-The agent can build and open the preview with the following command. Point it at the private JSON for your own worksheet.
+For your own worksheet, set `family_draft` to the path of the private JSON the agent saved. The agent can build and open the preview with these commands. After a correction, set `family_draft` to the revised file and rerun the preview command without `--build`.
+
+```bash
+family_draft="/absolute/path/to/your-reviewed-draft.json"
+bash scripts/preview-worksheet.sh --build "$family_draft"
+```
+
+For the sample, build and open revision 1 on the emulator.
 
 ```bash
 sample_dir=docs/samples/parent-handoff
@@ -51,21 +58,122 @@ In revised question 2, try **Autant**, check the hint « Compte en bas, puis com
 
 ## Validate and approve the exact revision
 
-For your own worksheet, set `draft` to the private JSON you just played. Set up a separate approval store for the rehearsal so it stays apart from family releases.
+Use the private JSON you just played as `family_draft`. Set `family_private_dir` to the private folder where you keep family release records and approvals. Use the same approval store for later updates.
 
 ```bash
-private_dir="$HOME/AppForKids-private"
-# For a rehearsal, instead use: private_dir="$(mktemp -d)"
-mkdir -p -m 700 "$private_dir"
-draft="$sample_dir/les-rangees-a-comparer-v2.json"
-python3 scripts/release.py validate "$draft"
+family_private_dir="$HOME/AppForKids-private"
+mkdir -p -m 700 "$family_private_dir"
+family_store="$family_private_dir/approved"
+python3 scripts/release.py validate "$family_draft"
 ```
 
-You can practise fixing a validation failure using this private copy of the sample. The command should print `question 2.answer: must match one of the choices exactly` and stop.
+If validation fails, give the agent the file, question number and message. Ask it to correct the draft and key, run validation again and reopen the preview before you approve.
+
+Once you approve the answers, feedback and playable preview for that revision, run the approval command.
 
 ```bash
-broken_draft="$(mktemp "$private_dir/invalid-draft.XXXXXX")"
-python3 - "$draft" "$broken_draft" <<'PY'
+python3 scripts/release.py approve --store "$family_store" "$family_draft"
+```
+
+Confirm the selector printed by the command matches the revision you reviewed and record it with the private answer key. If the agent is running the command for you, name that revision in your approval. Approval saves a snapshot of the exact content. If you change a game after approval, preview it again under a higher revision and approve that revision.
+
+## Set up the signing command
+
+Define this Bash function once per terminal session. Pass the keystore path and alias as its first two arguments. It prompts privately for the PKCS12 password each time it builds.
+
+```bash
+build_signed() (
+  export APPFORKIDS_KEYSTORE="$1"
+  export APPFORKIDS_KEY_ALIAS="$2"
+  shift 2
+  read -rsp 'Signing key password: ' APPFORKIDS_STORE_PASSWORD || exit 1
+  printf '\n'
+  export APPFORKIDS_STORE_PASSWORD
+  export APPFORKIDS_KEY_PASSWORD="$APPFORKIDS_STORE_PASSWORD"
+  python3 scripts/release.py build "$@"
+)
+```
+
+## Build the family APK
+
+Sign the first family APK and every update with the same original family key. Set `family_keystore` and `family_alias` to your existing key settings. The paths below show the suggested locations for a new setup.
+
+```bash
+family_signing_dir="$HOME/AppForKids-signing"
+family_keystore="$family_signing_dir/family.p12"
+family_alias=appforkids-family
+family_apk_dir="$family_private_dir/apks"
+```
+
+If you are creating the first family release, create one key outside the checkout.
+
+```bash
+mkdir -p -m 700 "$family_signing_dir"
+keytool -genkeypair -storetype PKCS12 \
+  -keystore "$family_keystore" -alias "$family_alias" \
+  -keyalg RSA -keysize 2048 -validity 10000 -dname 'CN=AppForKids Family'
+```
+
+Back up the family keystore in a second secure location such as an encrypted drive. Store its password separately in a password manager and record the alias. Test the backup with `keytool -list -keystore "/path/to/backup/family.p12" -alias "$family_alias"`. Android uses the signing key to recognise updates. Losing it will prevent in-place updates to releases signed with it. [Android signing guide](https://developer.android.com/studio/publish/app-signing)
+
+If an earlier macOS setup saved the password in Keychain, open **Keychain Access**, select the **login** keychain and look for the generic password item **AppForKids family APK signing**. The Passwords app may omit this item. Enter the password only at the signing prompt.
+
+For a first installation, build the starter APK and install it on the tablet. For an existing installation, use its saved APK as the baseline for the update. [Tablet installation](#transfer-and-install-on-the-tablet)
+
+```bash
+build_signed "$family_keystore" "$family_alias" \
+  --version-code 1 --output "$family_apk_dir/appforkids-v1.apk"
+```
+
+For an update, set `family_previous_apk` to the saved APK currently installed on the tablet and choose a higher Android version code. Replace `family_selector` with the selector printed for your approved family revision. Repeat `--game ID@REVISION` for each other approved game you want to retain. The P1 and P3 starters are included automatically. Selecting an approved correction under the same game ID replaces the old revision in that year.
+
+```bash
+family_previous_apk="/absolute/path/to/the-installed-family-release.apk"
+family_version_code=2
+family_selector='your-game-id@revision'
+family_update_apk="$family_apk_dir/appforkids-v$family_version_code.apk"
+build_signed "$family_keystore" "$family_alias" \
+  --store "$family_store" --game "$family_selector" \
+  --version-code "$family_version_code" --previous-apk "$family_previous_apk" \
+  --output "$family_update_apk"
+```
+
+The build checks the Android app ID, signing certificate and version code. Keep the APK for each installed release and record which game revisions it contains. If validation or building fails, keep using the last good APK, fix the error shown in the terminal and build again. To restore earlier content after installing an update, select its earlier approved revisions and build another APK with a version code higher than the installed one.
+
+## Transfer and install on the tablet
+
+1. Connect the unlocked tablet to the computer with a data-capable USB cable. If Android asks what to do with USB, select **File transfer**. With a computer that can browse the tablet, copy the APK to **Downloads**. You can also use a USB-C drive if the tablet supports it.
+   If your computer cannot browse the tablet and you have Android platform-tools installed, enable **USB debugging** in Android’s developer options and accept the tablet’s USB debugging prompt. Find the tablet serial in `adb devices` and copy the file with `adb -s TABLET_SERIAL push "$family_update_apk" /sdcard/Download/`. Substitute your tablet serial and, for a first installation, use the path to the starter APK. Turn USB debugging off after the transfer. [Android device connection](https://developer.android.com/studio/run/device)
+2. On the tablet, open **Files** and tap the APK. If prompted, open **Settings** from the prompt and enable **Allow from this source** for the app opening the file. Return to the installer. Tap **Install** for a first installation or accept the update over the existing **AppForKids**. Afterwards turn off the permission for the file-opening app.
+3. If Android refuses an update, check that the existing app is the family build and that both APKs have the same signing key. Check that the new version code exceeds the installed version and that the transferred file is complete. Keep the existing installation while you correct the problem. Build against the installed APK again and transfer the corrected result.
+
+## Check the physical tablet in airplane mode
+
+For a first setup, install the family baseline from Files and open both starters before installing the update. Keep the app installed when you open the update APK. Use the original family key for both APKs, including when checking the sample on the physical tablet.
+
+After the update, turn on airplane mode and make sure Wi-Fi is off. Close and reopen **AppForKids**. Check that the new activity card appears once under its intended year and play it to the end with the approved answer key. For the sample, open **Les rangées à comparer** under **P1** and answer **En haut** then **En bas**. Play **Les étoiles à compter** through one round. Use **Changer d’année**, choose **P3** and play **Les mots de même sens** through one round. Try a mistake and retry in each starter. If you selected other approved activities to retain, check that each appears under its year and opens offline. Check that the text and buttons are comfortable to use on the actual tablet.
+
+The physical tablet check for the sample is pending manual verification. Record first installation and in-place update separately with the date, tablet model, Android version, both APK version codes, verified titles by year, airplane-mode result and any model-specific USB or installer steps you observed. Add the result to the physical check record in [issue #6](https://github.com/hershalpandya/AppForKids/issues/6). [First installation ticket](https://github.com/hershalpandya/AppForKids/issues/2) · [Android APK testing notes](wiki/android-apk-testing.md)
+
+## Rehearse the signed update on a clean emulator
+
+Use a clean emulator and the throwaway key below for this rehearsal. After playing sample revision 2, define the [signing command](#set-up-the-signing-command) and create a temporary folder for the sample draft, its approvals, key and APKs.
+
+```bash
+rehearsal_dir="$(mktemp -d)"
+rehearsal_draft="$rehearsal_dir/les-rangees-a-comparer-v2.json"
+rehearsal_store="$rehearsal_dir/approved"
+rehearsal_selector=les-rangees-a-comparer@2
+rehearsal_keystore="$rehearsal_dir/rehearsal.p12"
+rehearsal_alias=appforkids-rehearsal
+cp docs/samples/parent-handoff/les-rangees-a-comparer-v2.json "$rehearsal_draft"
+```
+
+To practise fixing a validation failure, run this optional block. The final command should fail and report `question 2.answer: must match one of the choices exactly`.
+
+```bash
+broken_draft="$rehearsal_dir/invalid-draft.json"
+python3 - "$rehearsal_draft" "$broken_draft" <<'PYTHON'
 import json
 import sys
 from pathlib import Path
@@ -73,80 +181,39 @@ from pathlib import Path
 game = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
 game["questions"][1]["answer"] = "En dessous"
 Path(sys.argv[2]).write_text(json.dumps(game, ensure_ascii=False), encoding="utf-8")
-PY
+PYTHON
 python3 scripts/release.py validate "$broken_draft"
 ```
 
-For an actual failure, give the agent the file, question number and message. Ask it to correct the draft and key, run validation again and reopen the preview before you approve. For the rehearsal, the reviewed `$draft` already has the corrected answer, **En bas**. Retry with that file.
+Validate the reviewed sample, approve `les-rangees-a-comparer@2` and build both APKs with the rehearsal key.
 
 ```bash
-python3 scripts/release.py validate "$draft"
-python3 scripts/release.py approve --store "$private_dir/approved" "$draft"
-```
-
-Confirm the selector matches the draft you reviewed and record it with the private answer key. If the agent is running the approval command for you, name the revision in your approval, for example “I approve `les-rangees-a-comparer@2` for release.” Approval saves a snapshot of the exact content. If you change a game after approval, preview it again under a higher revision and approve that revision.
-
-## Sign and build the APK
-
-Use the original family key for every family update. On the first build, create one key outside the checkout. The rehearsal gets its own key in its temporary private folder.
-
-```bash
-signing_dir="$HOME/AppForKids-signing"
-# For a rehearsal, instead use: signing_dir="$private_dir/signing"
-key_alias=appforkids-family
-mkdir -p -m 700 "$signing_dir"
+python3 scripts/release.py validate "$rehearsal_draft"
+python3 scripts/release.py approve --store "$rehearsal_store" "$rehearsal_draft"
 keytool -genkeypair -storetype PKCS12 \
-  -keystore "$signing_dir/family.p12" -alias "$key_alias" \
-  -keyalg RSA -keysize 2048 -validity 10000 -dname 'CN=AppForKids Family'
+  -keystore "$rehearsal_keystore" -alias "$rehearsal_alias" \
+  -keyalg RSA -keysize 2048 -validity 10000 -dname 'CN=AppForKids Rehearsal'
+build_signed "$rehearsal_keystore" "$rehearsal_alias" \
+  --version-code 1 --output "$rehearsal_dir/appforkids-v1.apk"
+build_signed "$rehearsal_keystore" "$rehearsal_alias" \
+  --store "$rehearsal_store" --game "$rehearsal_selector" \
+  --version-code 2 --previous-apk "$rehearsal_dir/appforkids-v1.apk" \
+  --output "$rehearsal_dir/appforkids-v2.apk"
 ```
 
-For the family key, back up `family.p12` in a second secure location such as an encrypted drive. Store the password separately in a password manager and record the alias. Test the backup with `keytool -list -keystore "/path/to/backup/family.p12" -alias appforkids-family`. Android uses the signing key to recognise updates. Losing it will prevent in-place updates to releases signed with it. [Android signing guide](https://developer.android.com/studio/publish/app-signing)
-
-Set `signing_dir` and `key_alias` to your existing key settings when you return for an update. Define this Bash function once per terminal session. It prompts privately for the PKCS12 password each time it builds.
+Use `adb devices` to find the clean emulator’s serial, such as `emulator-5554`, and substitute it for `EMULATOR_SERIAL` in both commands. Install the baseline on that emulator.
 
 ```bash
-build_signed() (
-  export APPFORKIDS_KEYSTORE="$signing_dir/family.p12"
-  export APPFORKIDS_KEY_ALIAS="$key_alias"
-  read -rsp 'Signing key password: ' APPFORKIDS_STORE_PASSWORD || exit 1
-  printf '\n'
-  export APPFORKIDS_STORE_PASSWORD
-  export APPFORKIDS_KEY_PASSWORD="$APPFORKIDS_STORE_PASSWORD"
-  python3 scripts/release.py build "$@"
-)
-apk_dir="$private_dir/apks"
+adb -s EMULATOR_SERIAL install "$rehearsal_dir/appforkids-v1.apk"
 ```
 
-For a first installation, build the starter APK and [install it](#transfer-and-install-on-the-tablet). If the family app is already installed, use its saved APK as the baseline for the update.
+Turn on airplane mode and make sure Wi-Fi is off. Open **AppForKids**, play both starters and confirm the sample card is absent from **P1**. Keep the baseline installed and install the update over it while the emulator stays offline.
 
 ```bash
-build_signed --version-code 1 --output "$apk_dir/appforkids-v1.apk"
+adb -s EMULATOR_SERIAL install -r "$rehearsal_dir/appforkids-v2.apk"
 ```
 
-For an update, use a higher Android version code and pass the APK currently installed to `--previous-apk`. The build checks the Android app ID, signing certificate and version code. Replace the sample selector with your own approval and repeat `--game ID@REVISION` for each other approved game you want to retain. The P1 and P3 starters are included automatically. Selecting an approved correction under the same game ID replaces the old revision in that year.
-
-```bash
-build_signed --store "$private_dir/approved" --game les-rangees-a-comparer@2 \
-  --version-code 2 --previous-apk "$apk_dir/appforkids-v1.apk" \
-  --output "$apk_dir/appforkids-v2.apk"
-```
-
-Keep the APK for each installed release and record which game revisions it contains. If validation or building fails, keep using the last good APK, fix the error shown in the terminal and build again. If you need to restore earlier content after installing an update, select its earlier approved revisions and build another APK with a version code higher than the installed one. For example, to restore the sample baseline, build version 3 against the installed version 2 with the same key and no sample game selector.
-
-## Transfer and install on the tablet
-
-1. Connect the unlocked tablet to the computer with a data-capable USB cable. If Android asks what to do with USB, select **File transfer**. With a computer that can browse the tablet, copy the APK to **Downloads**. You can also use a USB-C drive if the tablet supports it.
-   If your computer cannot browse the tablet and you have Android platform-tools installed, enable **USB debugging** in Android’s developer options and accept the tablet’s USB debugging prompt. Find the tablet serial in `adb devices` and copy the file with `adb -s TABLET_SERIAL push "$apk_dir/appforkids-v2.apk" /sdcard/Download/`. Substitute your tablet serial and the APK you built. Turn USB debugging off after the transfer. [Android device connection](https://developer.android.com/studio/run/device)
-2. On the tablet, open **Files** and tap the APK. If prompted, open **Settings** from the prompt and enable **Allow from this source** for the app opening the file. Return to the installer. Tap **Install** for a first installation or accept the update over the existing **AppForKids**. Afterwards turn off the permission for the file-opening app.
-3. If Android refuses an update, check that the existing app is the family build and that both APKs have the same signing key. Check that the new version code exceeds the installed version and that the transferred file is complete. Keep the existing installation while you correct the problem. Build against the installed APK again and transfer the corrected result.
-
-## Check the physical tablet in airplane mode
-
-For the sample, the expected transition is from the starters-only APK to one with **Les rangées à comparer** under **P1**. For a first setup, install the baseline from Files and open both starters before installing the update. Keep the app installed when you open the update APK.
-
-After the update, turn on airplane mode and make sure Wi-Fi is off. Close and reopen **AppForKids**. Check that the new title appears once under its intended year. Play it to the end with the approved answer key. For the sample, under **P1**, answer **En haut** then **En bas**. Play **Les étoiles à compter** through one round. Use **Changer d’année**, choose **P3** and play **Les mots de même sens** through one round. Try a mistake and retry in each starter. Check that the text and buttons are comfortable to use on the actual tablet.
-
-**Physical tablet record for the sample:** Pending access to the family tablet. Record first installation and in-place update separately with the date, tablet model, Android version, both APK version codes, verified titles by year, airplane-mode result and any model-specific USB or installer steps you observed. Add the result to the physical check record in [issue #6](https://github.com/hershalpandya/AppForKids/issues/6). [First installation ticket](https://github.com/hershalpandya/AppForKids/issues/2) · [Android APK testing notes](wiki/android-apk-testing.md)
+Reopen **AppForKids** while offline. Confirm that **Les rangées à comparer** appears once under **P1** and play it with **En haut** then **En bas**. Confirm the P1 and P3 starters still open. To practise restoring the starters-only catalogue, build version 3 against version 2 with the rehearsal key and omit the `--game` selection. For the physical tablet, use the family-signed APKs and follow the tablet installation steps above.
 
 ## Find CI results and diagnostic files
 
