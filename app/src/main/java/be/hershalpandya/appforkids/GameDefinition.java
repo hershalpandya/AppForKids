@@ -19,6 +19,7 @@ final class GameDefinition {
 
     final Type type;
     final String id;
+    final int revision;
     final String year;
     final String title;
     final String objective;
@@ -41,7 +42,8 @@ final class GameDefinition {
 
     private GameDefinition(JSONObject data) throws JSONException {
         id = data.getString("id");
-        if (data.getInt("schemaVersion") != 1 || data.getInt("revision") < 1) {
+        revision = data.getInt("revision");
+        if (data.getInt("schemaVersion") != 1 || revision < 1) {
             throw new JSONException("Unsupported definition for " + id);
         }
         year = data.getString("year");
@@ -52,15 +54,18 @@ final class GameDefinition {
         objective = data.getString("objective");
         instructions = data.getString("instructions");
         workedExample = data.getString("workedExample");
-        completionMessage = data.optString("completionMessage", "Bravo, tu as répondu à toutes les questions.");
         switch (data.getString("type")) {
             case "tap-to-choose":
                 type = Type.TAP_TO_CHOOSE;
+                completionMessage = data.optString("completionMessage",
+                        "Bravo, tu as répondu à toutes les questions.");
                 questions = loadQuestions(data.getJSONArray("questions"));
                 pairs = Collections.emptyList();
                 break;
             case "matching":
                 type = Type.MATCHING;
+                completionMessage = data.optString("completionMessage",
+                        "Bravo, tu as associé toutes les paires !");
                 questions = Collections.emptyList();
                 pairs = loadPairs(data.getJSONArray("pairs"));
                 break;

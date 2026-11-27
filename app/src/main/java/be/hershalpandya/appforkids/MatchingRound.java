@@ -15,12 +15,28 @@ final class MatchingRound {
         this(pairs, new ArrayList<>(), NO_SELECTION, null);
     }
 
-    MatchingRound(List<GameDefinition.Pair> pairs, ArrayList<Integer> matched,
-                  int selected, String feedback) {
+    private MatchingRound(List<GameDefinition.Pair> pairs, ArrayList<Integer> matched,
+                          int selected, String feedback) {
         this.pairs = pairs;
         this.matched = matched;
         this.selected = selected;
         this.feedback = feedback;
+    }
+
+    static MatchingRound restore(List<GameDefinition.Pair> pairs, ArrayList<Integer> matched,
+                                 int selected, String feedback) {
+        if (matched == null || selected < NO_SELECTION || selected >= pairs.size()) {
+            return null;
+        }
+        ArrayList<Integer> restored = new ArrayList<>();
+        for (Integer index : matched) {
+            if (index == null || index < 0 || index >= pairs.size()
+                    || index == selected || restored.contains(index)) {
+                return null;
+            }
+            restored.add(index);
+        }
+        return new MatchingRound(pairs, restored, selected, feedback);
     }
 
     int selected() {

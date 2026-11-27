@@ -19,7 +19,7 @@ def adb(*arguments, check=True):
     )
 
 
-def visible_matches(text, package=PACKAGE, *, absent=()):
+def visible_matches(text, package=PACKAGE, *, absent=(), rotation=None):
     deadline = time.monotonic() + 20
     last_labels = []
     while time.monotonic() < deadline:
@@ -28,16 +28,17 @@ def visible_matches(text, package=PACKAGE, *, absent=()):
         if dumped.returncode == 0:
             result = adb("exec-out", "cat", HIERARCHY, check=False)
             if result.returncode == 0 and result.stdout.strip().startswith("<?xml"):
+                hierarchy = ET.fromstring(result.stdout)
                 nodes = [
                     node
-                    for node in ET.fromstring(result.stdout).iter("node")
+                    for node in hierarchy.iter("node")
                     if node.get("package") == package
                 ]
                 matches = [
                     node for node in nodes
                     if node.get("text") == text and node.get("enabled") == "true"
                 ]
-                if matches:
+                if matches and (rotation is None or hierarchy.get("rotation") == str(rotation)):
                     labels = {node.get("text") for node in nodes}
                     if unexpected := labels.intersection(absent):
                         raise AssertionError(f"Unexpected visible labels: {sorted(unexpected)!r}")
@@ -47,8 +48,8 @@ def visible_matches(text, package=PACKAGE, *, absent=()):
     raise AssertionError(f"Expected visible text {text!r}. Last app labels: {last_labels!r}")
 
 
-def visible(text, package=PACKAGE, *, absent=()):
-    return visible_matches(text, package, absent=absent)[0]
+def visible(text, package=PACKAGE, *, absent=(), rotation=None):
+    return visible_matches(text, package, absent=absent, rotation=rotation)[0]
 
 
 def tap(text, package=PACKAGE):

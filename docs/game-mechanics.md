@@ -21,6 +21,8 @@ Use the [P1 definition and field reference](p1-worksheet-preview.md#write-a-game
 
 For `matching`, add a `pairs` array with at least two objects. Each object gives the correct pairing through its `left` and `right` text, plus `correctFeedback` and `retryFeedback`. Use distinct labels within each column. Validation trims whitespace and normalizes Unicode when checking duplicates. Left entries appear in array order and the runtime offsets the right column. The pupil taps a left entry, then a right entry, and matching retires both tiles. A wrong attempt leaves the left entry selected for retry. Use short labels and a small set of pairs that fits comfortably on the tablet. [Complete P3 working example](../app/src/main/assets/games/les-mots-de-meme-sens.json)
 
+When Android recreates the activity, a matching round for the same game revision restores matched pairs, the selected left tile, and the last hint or success message. A changed revision or mechanic starts at the instructions. On completion, **Rejouer** starts with every pair unmatched, with no selection or feedback.
+
 Keep source scans and review references in private authoring files. The portable definition contains game content and uses text or symbols for visual cues.
 
 ## Add a different interaction

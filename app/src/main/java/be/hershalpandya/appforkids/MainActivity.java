@@ -61,29 +61,57 @@ public final class MainActivity extends Activity {
         loadWorksheetPreview();
 
         if (savedState != null) {
-            screen = Screen.valueOf(savedState.getString("screen", Screen.HOME.name()));
-            year = savedState.getString("year");
-            String gameId = savedState.getString("game");
-            for (GameDefinition entry : games) {
-                if (entry.id.equals(gameId)) {
-                    game = entry;
-                    break;
-                }
-            }
-            if (game != null && game.type == GameDefinition.Type.MATCHING) {
-                ArrayList<Integer> matches = savedState.getIntegerArrayList("matches");
-                if (matches != null) {
-                    matchingRound = new MatchingRound(game.pairs, matches,
-                            savedState.getInt("selectedPair", MatchingRound.NO_SELECTION),
-                            savedState.getString("matchingFeedback"));
-                }
-            } else if (game != null) {
-                String feedback = savedState.getString("feedback", GameRound.Feedback.NONE.name());
-                round = new GameRound(game, savedState.getInt("question"),
-                        GameRound.Feedback.valueOf(feedback));
-            }
+            restoreScreen(savedState);
         }
         render();
+    }
+
+    private void restoreScreen(Bundle state) {
+        screen = Screen.valueOf(state.getString("screen", Screen.HOME.name()));
+        year = state.getString("year");
+        if (screen == Screen.HOME || screen == Screen.CATALOGUE) {
+            return;
+        }
+
+        String gameId = state.getString("game");
+        for (GameDefinition entry : games) {
+            if (entry.id.equals(gameId) && entry.year.equals(year)) {
+                game = entry;
+                break;
+            }
+        }
+        if (game == null) {
+            screen = year == null ? Screen.HOME : Screen.CATALOGUE;
+            return;
+        }
+        if (screen == Screen.INSTRUCTIONS) {
+            return;
+        }
+
+        // Older saved rounds predate revision metadata. Only resume their starter revision.
+        String oldType = state.containsKey("matches") ? GameDefinition.Type.MATCHING.name()
+                : GameDefinition.Type.TAP_TO_CHOOSE.name();
+        if (game.revision != state.getInt("gameRevision", 1)
+                || !game.type.name().equals(state.getString("gameType", oldType))) {
+            screen = Screen.INSTRUCTIONS;
+            return;
+        }
+        if (game.type == GameDefinition.Type.MATCHING) {
+            matchingRound = MatchingRound.restore(game.pairs, state.getIntegerArrayList("matches"),
+                    state.getInt("selectedPair", MatchingRound.NO_SELECTION),
+                    state.getString("matchingFeedback"));
+            if (matchingRound == null || (screen == Screen.COMPLETE && !matchingRound.isComplete())) {
+                screen = Screen.INSTRUCTIONS;
+            }
+        } else {
+            int question = state.getInt("question");
+            if (question < 0 || question >= game.questions.size()) {
+                screen = Screen.INSTRUCTIONS;
+                return;
+            }
+            String feedback = state.getString("feedback", GameRound.Feedback.NONE.name());
+            round = new GameRound(game, question, GameRound.Feedback.valueOf(feedback));
+        }
     }
 
     @Override
@@ -93,6 +121,8 @@ public final class MainActivity extends Activity {
         state.putString("year", year);
         if (game != null) {
             state.putString("game", game.id);
+            state.putInt("gameRevision", game.revision);
+            state.putString("gameType", game.type.name());
         }
         if (round != null) {
             state.putInt("question", round.questionIndex());
@@ -198,7 +228,7 @@ public final class MainActivity extends Activity {
                 break;
             case ROUND:
                 if (game.type == GameDefinition.Type.MATCHING) {
-                    renderMatching(content, announceFeedback);
+                    new MatchingBoard(content);
                 } else {
                     renderRound(content, announceFeedback);
                 }
@@ -265,72 +295,119 @@ public final class MainActivity extends Activity {
         catalogueButton(content);
     }
 
-    private void renderMatching(LinearLayout content, boolean announceFeedback) {
-        int pairCount = game.pairs.size();
-        int matched = matchingRound.matchedCount();
-        int selected = matchingRound.selected();
-        heading(content, game.title, 34);
-        body(content, getString(R.string.pair_progress, matched, pairCount));
-        String selection = selected == MatchingRound.NO_SELECTION
-                ? "Touche un mot à gauche."
-                : getString(R.string.chosen_word, game.pairs.get(selected).left);
-        if (!matchingRound.isComplete()) {
-            body(content, selection);
+    private final class MatchingBoard {
+        private final TextView progress;
+        private final TextView selection;
+        private final LinearLayout feedbackCard;
+        private final TextView feedback;
+        private final Button finish;
+        private final Button[] leftTiles = new Button[game.pairs.size()];
+        private final Button[] rightTiles = new Button[game.pairs.size()];
+
+        MatchingBoard(LinearLayout content) {
+            heading(content, game.title, 34);
+            progress = body(content, "");
+            selection = body(content, "");
+
+            LinearLayout board = new LinearLayout(MainActivity.this);
+            board.setOrientation(LinearLayout.HORIZONTAL);
+            // The French instructions refer to the physical left and right columns.
+            board.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+            add(content, board, 6);
+            LinearLayout left = column(board, "À gauche", 8);
+            LinearLayout right = column(board, "À droite", 0);
+            for (int i = 0; i < leftTiles.length; i++) {
+                int leftIndex = i;
+                leftTiles[leftIndex] = makeButton(game.pairs.get(leftIndex).left, 26, false,
+                        () -> select(leftIndex));
+                add(left, leftTiles[leftIndex], 8);
+
+                // Offset the answers so the halves of a pair start on different rows.
+                int rightIndex = (i + 1) % rightTiles.length;
+                rightTiles[rightIndex] = makeButton(game.pairs.get(rightIndex).right, 26, false,
+                        () -> match(rightIndex));
+                add(right, rightTiles[rightIndex], 8);
+            }
+            feedbackCard = card(content, PALE_BLUE);
+            feedback = body(feedbackCard, "");
+            finish = makeButton("Terminer", 26, true, () -> show(Screen.COMPLETE));
+            add(content, finish, 12);
+            catalogueButton(content);
+            refresh();
         }
 
-        LinearLayout board = new LinearLayout(this);
-        board.setOrientation(LinearLayout.HORIZONTAL);
-        add(content, board, 6);
-        LinearLayout left = matchingColumn(board, "À gauche", 8);
-        LinearLayout right = matchingColumn(board, "À droite", 0);
-        for (int i = 0; i < pairCount; i++) {
-            int leftIndex = i;
-            matchingTile(left, game.pairs.get(leftIndex).left, matchingRound.isMatched(leftIndex),
-                    leftIndex == selected, true, () -> {
-                        matchingRound.select(leftIndex);
-                        refreshMatching(false);
-                    });
-            // Offset the answers so the two halves of each pair start on different rows.
-            int rightIndex = (i + 1) % pairCount;
-            matchingTile(right, game.pairs.get(rightIndex).right, matchingRound.isMatched(rightIndex),
-                    false, selected != MatchingRound.NO_SELECTION, () -> {
-                        matchingRound.match(rightIndex);
-                        refreshMatching(true);
-                    });
+        private LinearLayout column(LinearLayout board, String label, int endMargin) {
+            LinearLayout column = new LinearLayout(MainActivity.this);
+            column.setOrientation(LinearLayout.VERTICAL);
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, -2, 1);
+            params.setMarginEnd(dp(endMargin));
+            board.addView(column, params);
+            heading(column, label, 20);
+            return column;
         }
-        renderFeedback(content, matchingRound.feedbackMessage(), announceFeedback);
-        if (matchingRound.isComplete()) {
-            button(content, "Terminer", 26, true, () -> show(Screen.COMPLETE));
+
+        private void select(int index) {
+            matchingRound.select(index);
+            refresh();
+            selection.announceForAccessibility(selection.getText());
         }
-        catalogueButton(content);
-    }
 
-    private LinearLayout matchingColumn(LinearLayout board, String label, int endMargin) {
-        LinearLayout column = new LinearLayout(this);
-        column.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, -2, 1);
-        params.setMarginEnd(dp(endMargin));
-        board.addView(column, params);
-        heading(column, label, 20);
-        return column;
-    }
-
-    private void matchingTile(LinearLayout column, String label, boolean matched,
-                              boolean selected, boolean available, Runnable action) {
-        Button tile = makeButton(matched ? "✓ " + label : label, 26, selected, action);
-        tile.setEnabled(available && !matched);
-        tile.setSelected(selected);
-        if (matched) {
-            tile.setContentDescription(getString(R.string.matched_word, label));
+        private void match(int index) {
+            boolean hadKeyboardFocus = rightTiles[index].hasFocus();
+            matchingRound.match(index);
+            refresh();
+            if (hadKeyboardFocus && matchingRound.isMatched(index)) {
+                moveKeyboardFocus();
+            }
+            feedback.announceForAccessibility(feedback.getText());
         }
-        add(column, tile, 8);
-    }
 
-    private void refreshMatching(boolean announceFeedback) {
-        int position = scroll.getScrollY();
-        render(announceFeedback);
-        ScrollView matchingPage = scroll;
-        matchingPage.post(() -> matchingPage.scrollTo(0, position));
+        private void moveKeyboardFocus() {
+            if (matchingRound.isComplete()) {
+                finish.requestFocus();
+                return;
+            }
+            for (Button tile : leftTiles) {
+                if (tile.isEnabled() && tile.requestFocus()) {
+                    return;
+                }
+            }
+        }
+
+        private void refresh() {
+            int selected = matchingRound.selected();
+            boolean complete = matchingRound.isComplete();
+            progress.setText(getString(R.string.pair_progress, matchingRound.matchedCount(),
+                    leftTiles.length));
+            selection.setText(selected == MatchingRound.NO_SELECTION
+                    ? "Touche un mot à gauche."
+                    : getString(R.string.chosen_word, game.pairs.get(selected).left));
+            selection.setVisibility(complete ? View.GONE : View.VISIBLE);
+            for (int i = 0; i < leftTiles.length; i++) {
+                boolean matched = matchingRound.isMatched(i);
+                refreshTile(leftTiles[i], game.pairs.get(i).left, matched, i == selected, true);
+                refreshTile(rightTiles[i], game.pairs.get(i).right, matched, false,
+                        selected != MatchingRound.NO_SELECTION);
+            }
+            String message = matchingRound.feedbackMessage();
+            feedback.setText(message);
+            feedbackCard.setVisibility(message == null ? View.GONE : View.VISIBLE);
+            finish.setVisibility(complete ? View.VISIBLE : View.GONE);
+        }
+
+        private void refreshTile(Button tile, String label, boolean matched,
+                                 boolean selected, boolean available) {
+            tile.setEnabled(available && !matched);
+            tile.setFocusable(available && !matched);
+            if (tile.isSelected() != selected) {
+                tile.setSelected(selected);
+                styleButton(tile, selected);
+            }
+            if (matched && tile.getContentDescription() == null) {
+                tile.setText("✓ " + label);
+                tile.setContentDescription(getString(R.string.matched_word, label));
+            }
+        }
     }
 
     private void renderFeedback(LinearLayout content, String message, boolean announceFeedback) {
@@ -388,8 +465,10 @@ public final class MainActivity extends Activity {
         add(parent, heading, 6);
     }
 
-    private void body(LinearLayout parent, String label) {
-        add(parent, text(label, 22, INK), 4);
+    private TextView body(LinearLayout parent, String label) {
+        TextView body = text(label, 22, INK);
+        add(parent, body, 4);
+        return body;
     }
 
     private TextView text(String label, int size, int color) {
@@ -411,12 +490,16 @@ public final class MainActivity extends Activity {
         button.setAllCaps(false);
         button.setMinHeight(dp(64));
         button.setPadding(dp(10), dp(8), dp(10), dp(8));
+        styleButton(button, main);
+        button.setOnClickListener(view -> action.run());
+        return button;
+    }
+
+    private void styleButton(Button button, boolean main) {
         button.setTextColor(main ? Color.WHITE : BLUE);
         int ripple = main ? 0x55ffffff : 0x332257a5;
         button.setBackground(new RippleDrawable(
                 ColorStateList.valueOf(ripple), rounded(main ? BLUE : PALE_BLUE, 18), null));
-        button.setOnClickListener(view -> action.run());
-        return button;
     }
 
     private GradientDrawable rounded(int color, int radius) {

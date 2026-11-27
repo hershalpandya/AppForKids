@@ -2,6 +2,7 @@
 """Play the reviewed worksheet fixtures through the installed preview APK."""
 
 import json
+import re
 import subprocess
 import sys
 from functools import partial
@@ -61,12 +62,31 @@ def play_p3_worksheet():
         raise AssertionError("The matching draft must replace the bundled game in the preview")
     touch("Les mots de même sens")
     touch("Jouer")
+    touch("content")
+    source_x = int(re.match(r"\[(\d+),", see("content").attrib["bounds"])[1])
+    answer_x = int(re.match(r"\[(\d+),", see("heureux").attrib["bounds"])[1])
+    if source_x >= answer_x:
+        raise AssertionError("The source words must be in the physical left column")
+    touch("heureux")
     touch("commencer")
     touch("beau")
-    see("Les acteurs entrent en scène. Quel mot peut remplacer « commencer » ?")
+    hint = "Les acteurs entrent en scène. Quel mot peut remplacer « commencer » ?"
+    see(hint)
+
+    original_rotation = adb("shell", "wm", "user-rotation").stdout.split()
+    try:
+        adb("shell", "wm", "user-rotation", "lock", "0")
+        see(hint, rotation=0)
+        adb("shell", "wm", "user-rotation", "lock", "1")
+        see(hint, rotation=1)
+        see("Paires associées : 1 sur 3")
+        if see("commencer").get("selected") != "true":
+            raise AssertionError("Recreating the matching round must restore the selected tile")
+        see("Mot choisi : commencer")
+    finally:
+        adb("shell", "wm", "user-rotation", *original_rotation)
+
     touch("débuter")
-    touch("content")
-    touch("heureux")
     touch("joli")
     touch("beau")
     touch("Terminer")
