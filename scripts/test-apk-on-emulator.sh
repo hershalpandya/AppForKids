@@ -30,6 +30,8 @@ finish() {
     result=$?
     if (( result != 0 )); then
         timeout 15s adb logcat -d > "$reports/logcat.txt" 2>&1 || true
+        timeout 10s adb shell dumpsys connectivity > "$reports/connectivity.txt" 2>&1 || true
+        timeout 10s adb shell cmd wifi status > "$reports/wifi-status.txt" 2>&1 || true
         timeout 10s adb exec-out cat /sdcard/appforkids-window.xml > "$reports/last-window.xml" || true
         timeout 10s adb exec-out screencap -p > "$reports/last-screen.png" || true
         tail -n 60 "$reports/emulator.log"
@@ -51,7 +53,36 @@ adb shell wm dismiss-keyguard
 adb shell settings put global window_animation_scale 0
 adb shell settings put global transition_animation_scale 0
 adb shell settings put global animator_duration_scale 0
-adb shell cmd connectivity airplane-mode enable
-adb shell svc wifi disable
+# Android can still initialize its radio services after reporting boot complete.
+if ! timeout 90s bash -c '
+    stable=0
+    while true; do
+        airplane=$(adb shell settings get global airplane_mode_on | tr -d "\r")
+        wifi=$(adb shell cmd wifi status | tr -d "\r")
+        network=$(adb shell dumpsys connectivity | tr -d "\r" | sed -n "/^[[:space:]]*Active default network:/p")
+        printf "Airplane mode: %s\n%s\n%s\n" "$airplane" "$wifi" "$network"
+
+        if [[ "$airplane" == 1 && "$wifi" == *"Wifi is disabled"* &&
+              "$network" =~ ^[[:space:]]*Active\ default\ network:\ none[[:space:]]*$ ]]; then
+            stable=$((stable + 1))
+            if (( stable == 2 )); then
+                exit 0
+            fi
+        else
+            stable=0
+            if [[ "$airplane" != 1 ]]; then
+                adb shell cmd connectivity airplane-mode enable
+            fi
+            if [[ "$wifi" != *"Wifi is disabled"* ]]; then
+                adb shell svc wifi disable
+            fi
+        fi
+        sleep 2
+    done
+' 2>&1 | tee "$reports/offline-setup.log"; then
+    echo 'The emulator did not reach a stable offline state.' >&2
+    exit 1
+fi
+
 adb install "$apk" 2>&1 | tee "$reports/install.log"
 python3 scripts/smoke_test.py "$reports"
