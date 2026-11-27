@@ -16,13 +16,13 @@ The agent builds and installs **AppForKids · Aperçu** on an Android emulator, 
 
 ### Agent setup
 
-Use JDK 17 and the Android SDK from the [README](../README.md). Put the SDK's platform-tools directory on the path, start a tablet emulator and select it with `ANDROID_SERIAL` if more than one Android device is connected. From the checkout, run the preview helper with the private draft path.
+Use JDK 17 and the Android SDK from the [parent setup guide](parent-handoff.md#set-up-the-computer-once). Put the SDK's platform-tools directory on the path, start a tablet emulator and select it with `ANDROID_SERIAL` if more than one Android device is connected. From the checkout, run the preview helper with the private draft path.
 
 ```sh
 bash scripts/preview-worksheet.sh --build "/path/to/private-worksheets/game-draft.json"
 ```
 
-With the preview APK already installed, omit `--build` to reload a corrected file. The helper copies one game definition into private storage in the separate preview app. The family APK bundles its own catalogue and uses the same game parser and round rules. After reviewing the final preview, follow the [approval and release commands](../README.md#approve-and-release-a-worksheet-game).
+With the preview APK already installed, omit `--build` to reload a corrected file. The helper copies one game definition into private storage in the separate preview app. The family APK bundles its own catalogue and uses the same game parser and round rules. After reviewing the final preview, follow the [approval and release commands](parent-handoff.md#validate-and-approve-the-exact-revision).
 
 ## Write a game definition
 

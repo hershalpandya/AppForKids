@@ -11,3 +11,5 @@ On 2026-11-27, `hershalpandya/AppForKids@7b40796` resolved the SDK tools from th
 On 2026-11-27, `hershalpandya/AppForKids@77720c0` added CI coverage for installing a baseline and candidate signed with the same temporary key. The candidate’s catalogue was checked for the selected revisions and exercised offline on the same emulator. [P1 approved releases](p1-approved-release.md) · [Implementation PR](https://github.com/hershalpandya/AppForKids/pull/10)
 
 On 2026-11-27, `hershalpandya/AppForKids@c985a51` added an approved P3 correction to the signed in-place update check. The starter check exercised both years offline and the preview check exercised matching round recreation. [P3 matching starter](p3-matching-starter.md)
+
+On 2026-11-27, the family-signed version 2 passed an in-place update on a Samsung SM-T500 running Android 12. An ADB streamed install timed out, and the APK installed after a USB copy to local tablet storage. Both year catalogues were playable in airplane mode with Wi-Fi off. [Parent handoff](parent-handoff.md)
