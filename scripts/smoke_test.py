@@ -19,7 +19,7 @@ def adb(*arguments, check=True):
     )
 
 
-def visible(text):
+def visible(text, package=PACKAGE):
     deadline = time.monotonic() + 20
     last_labels = []
     while time.monotonic() < deadline:
@@ -31,7 +31,7 @@ def visible(text):
                 nodes = [
                     node
                     for node in ET.fromstring(result.stdout).iter("node")
-                    if node.get("package") == PACKAGE
+                    if node.get("package") == package
                 ]
                 for node in nodes:
                     if node.get("text") == text and node.get("enabled") == "true":
@@ -41,8 +41,8 @@ def visible(text):
     raise AssertionError(f"Expected visible text {text!r}. Last app labels: {last_labels!r}")
 
 
-def tap(text):
-    node = visible(text)
+def tap(text, package=PACKAGE):
+    node = visible(text, package)
     if node.get("clickable") != "true":
         raise AssertionError(f"Expected a touch control for {text!r}")
     left, top, right, bottom = map(int, re.findall(r"\d+", node.attrib["bounds"]))
