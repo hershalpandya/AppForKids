@@ -1,10 +1,10 @@
 # AppForKids
 
-AppForKids débute avec **Les étoiles à compter**, un jeu hors ligne pour les enfants de P1. Le jeu utilise trois exercices originaux de dénombrement. Les questions et les réponses se trouvent dans [la fiche du jeu](app/src/main/assets/games/compter-les-etoiles.json).
+AppForKids propose deux jeux hors ligne. En **P1**, [Les étoiles à compter](app/src/main/assets/games/compter-les-etoiles.json) fait pratiquer le dénombrement. En **P3**, [Les mots de même sens](app/src/main/assets/games/les-mots-de-meme-sens.json) fait associer des synonymes. Utilise **Changer d’année** pour passer d’un catalogue à l’autre.
 
 ## Preview a worksheet game
 
-In Codex, attach redacted worksheet pages and use `$worksheet-to-game` with the year, learning goal and teaching constraints. The agent prepares the draft and opens it on an Android emulator for your review. See the [P1 worksheet workflow](docs/p1-worksheet-preview.md) for a sample request and correction.
+In Codex, attach redacted worksheet pages and use `$worksheet-to-game` with the year, learning goal and teaching constraints. The agent prepares the draft and opens it on an Android emulator for your review. See the [P1 counting workflow](docs/p1-worksheet-preview.md) or [P3 matching workflow](docs/p3-worksheet-preview.md) for a sample request and correction. See the [game mechanics extension guide](docs/game-mechanics.md) for the portable format and how to add an interaction.
 
 ## Build the family APK
 
@@ -47,7 +47,7 @@ python3 scripts/release.py approve \
   --store "$HOME/AppForKids-private/approved" "$HOME/AppForKids-private/game-draft.json"
 ```
 
-Use the signing subshell above and replace its build command with the following example. Substitute the ID and revision printed by the approval command. Repeat `--game` for each approved game you want to keep in the update. The bundled starter is included automatically. Selecting an approved correction under its ID replaces that entry.
+Use the signing subshell above and replace its build command with the following example. Substitute the ID and revision printed by the approval command. Repeat `--game` for each approved game you want to keep in the update. The bundled starters are included automatically. Selecting an approved correction under the same ID replaces that entry.
 
 ```sh
 python3 scripts/release.py build --store "$HOME/AppForKids-private/approved" \
@@ -64,7 +64,7 @@ Release validation treats choices that differ only by surrounding whitespace or 
 
 1. Copy the signed APK from `build/releases/` to the tablet and open it with the Files app. For an update, keep the existing AppForKids installation and confirm the update when prompted. If asked, enable **Install unknown apps** for Files, complete the installation and turn that permission off again.
 2. Enable airplane mode and check that Wi-Fi is off. Open **AppForKids** and choose **P1**.
-3. For a first install, open **Les étoiles à compter**. In the first question, try **3**, then **4**. Check the retry hint and the correct answer feedback. Complete the round, replay and return to the catalogue. Check that the text and controls are comfortable to use. Record the successful first install in [issue #2](https://github.com/hershalpandya/AppForKids/issues/2), including the tablet model, Android version and APK version.
-4. For an update, open each newly approved title and each previously installed title that you included in the update. Tap **Jouer** to check that each opens offline. If the update includes a correction, check that its title appears once in **P1** and that it opens with the corrected content.
+3. For a first install, open **Les étoiles à compter**. In the first question, try **3**, then **4**. Check the retry hint and the correct answer feedback. Complete the round, replay and return to the catalogue. Tap **Changer d’année**, choose **P3** and open **Les mots de même sens**. Try matching **content** to **débuter**, then to **heureux**, and finish the round. Check that the text and controls are comfortable to use. Record the successful first install in [issue #2](https://github.com/hershalpandya/AppForKids/issues/2), including the tablet model, Android version and APK version.
+4. For an update, open each newly approved title and each previously installed title that you included in the update. Tap **Jouer** to check that each opens offline. If the update includes a correction, check that its title appears once in its year’s catalogue and that it opens with the corrected content.
 
-GitHub Actions creates a separate, temporary CI signing key per run. Use the APK from the family build for tablet installations and updates. The CI workflow installs the baseline APK, plays the P1 round, and installs the candidate APK over it. It opens both approved games on a headless Pixel Tablet emulator with airplane mode on and Wi-Fi off.
+GitHub Actions creates a separate, temporary CI signing key per run. Use the APK from the family build for tablet installations and updates. The CI workflow plays both starters and both worksheet previews, then installs the candidate APK over the baseline. It opens the approved P1 games and the P3 starter on a headless Pixel Tablet emulator with airplane mode on and Wi-Fi off.

@@ -83,6 +83,7 @@ jobs:
           approvals="$RUNNER_TEMP/appforkids-approvals"
           python3 scripts/release.py approve --store "$approvals" tests/fixtures/les-jetons-a-reunir.json
           python3 scripts/release.py approve --store "$approvals" tests/fixtures/compter-les-etoiles-corrige.json
+          python3 scripts/release.py approve --store "$approvals" tests/fixtures/les-mots-de-meme-sens-corrige.json
           python3 - "$RUNNER_TEMP/jetons-revision-3.json" <<'PYTHON'
           import json
           import sys
@@ -93,7 +94,7 @@ jobs:
           PYTHON
           python3 scripts/release.py approve --store "$approvals" "$RUNNER_TEMP/jetons-revision-3.json"
           python3 scripts/release.py build --store "$approvals" \
-            --game les-jetons-a-reunir@2 --game compter-les-etoiles@2 \
+            --game les-jetons-a-reunir@2 --game compter-les-etoiles@2 --game les-mots-de-meme-sens@2 \
             --version-code 2 --previous-apk "$baseline" --output build/ci/app-release-update.apk \
             2>&1 | tee build/ci/gradle-update.log
 

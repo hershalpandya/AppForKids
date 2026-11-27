@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Approve an exact P1 game revision and build a signed family APK."""
+"""Validate and approve a reviewed game revision and build a signed family APK."""
 
 import argparse
 import hashlib
@@ -77,8 +77,8 @@ def validate_game(game, source):
     visual_hint = "use visualRows for text or symbols"
     text_fields = {"title", "objective", "instructions", "workedExample"}
     fields(
-        game, text_fields | {"schemaVersion", "id", "revision", "year", "type", "questions"},
-        {"completionMessage"}, source, unsupported_hint=visual_hint,
+        game, text_fields | {"schemaVersion", "id", "revision", "year", "type"},
+        {"completionMessage", "questions", "pairs"}, source, unsupported_hint=visual_hint,
     )
     if type(game["schemaVersion"]) is not int or game["schemaVersion"] != 1:
         raise ReleaseError(f"{source}: unsupported schemaVersion; expected 1")
@@ -88,19 +88,34 @@ def validate_game(game, source):
         raise ReleaseError(f"{source}: game id 'catalogue' is reserved")
     if type(game["revision"]) is not int or not 1 <= game["revision"] <= 2147483647:
         raise ReleaseError(f"{source}: revision must be a positive 32-bit integer")
-    if game["year"] != "P1":
-        raise ReleaseError(f"{source}: unsupported year {game['year']!r}; expected P1")
-    if game["type"] != "tap-to-choose":
-        raise ReleaseError(f"{source}: unsupported game type {game['type']!r}; expected tap-to-choose")
+    if game["year"] not in ("P1", "P3"):
+        raise ReleaseError(f"{source}: unsupported year {game['year']!r}; expected P1 or P3")
+    if game["type"] == "tap-to-choose":
+        required, unexpected, validate_content = "questions", "pairs", validate_questions
+    elif game["type"] == "matching":
+        required, unexpected, validate_content = "pairs", "questions", validate_pairs
+    else:
+        raise ReleaseError(
+            f"{source}: unsupported game type {game['type']!r}; expected tap-to-choose or matching"
+        )
+    if required not in game:
+        raise ReleaseError(f"{source}: missing field {required!r} for {game['type']}")
+    if unexpected in game:
+        raise ReleaseError(f"{source}: unsupported field {unexpected!r} for {game['type']}")
     for key in sorted(text_fields | ({"completionMessage"} & game.keys())):
         nonempty(game[key], f"{source}: {key}")
-    if not isinstance(game["questions"], list) or not game["questions"]:
+    validate_content(game[required], source)
+    return game
+
+
+def validate_questions(questions, source):
+    if not isinstance(questions, list) or not questions:
         raise ReleaseError(f"{source}: questions must contain at least one question")
 
     question_fields = {"prompt", "visualRows", "choices", "answer", "correctFeedback", "retryFeedback"}
-    for index, question in enumerate(game["questions"], 1):
+    for index, question in enumerate(questions, 1):
         location = f"{source}: question {index}"
-        fields(question, question_fields, set(), location, unsupported_hint=visual_hint)
+        fields(question, question_fields, set(), location, unsupported_hint="use visualRows for text or symbols")
         for key in ("prompt", "answer", "correctFeedback", "retryFeedback"):
             nonempty(question[key], f"{location}.{key}")
         text_array(question["visualRows"], f"{location}.visualRows", 0)
@@ -112,7 +127,23 @@ def validate_game(game, source):
             )
         if question["answer"] not in question["choices"]:
             raise ReleaseError(f"{location}.answer: must match one of the choices exactly")
-    return game
+
+
+def validate_pairs(pairs, source):
+    if not isinstance(pairs, list) or len(pairs) < 2:
+        raise ReleaseError(f"{source}: pairs must contain at least two pairs")
+    pair_fields = ("left", "right", "correctFeedback", "retryFeedback")
+    columns = {"left": set(), "right": set()}
+    for index, pair in enumerate(pairs, 1):
+        location = f"{source}: pair {index}"
+        fields(pair, set(pair_fields), set(), location)
+        for key in pair_fields:
+            nonempty(pair[key], f"{location}.{key}")
+        for side, labels in columns.items():
+            label = unicodedata.normalize("NFC", pair[side].strip())
+            if label in labels:
+                raise ReleaseError(f"{location}.{side}: use distinct labels in each matching column")
+            labels.add(label)
 
 
 def starter_games():
@@ -291,6 +322,8 @@ def build_apk(args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
+    validation = commands.add_parser("validate", help="check a draft before preview")
+    validation.add_argument("draft", type=Path)
     approval = commands.add_parser("approve", help="approve the reviewed draft")
     approval.add_argument("--store", required=True, type=Path)
     approval.add_argument("draft", type=Path)
@@ -305,7 +338,10 @@ def main():
     package.add_argument("--selection", type=Path)
     args = parser.parse_args()
     try:
-        if args.command == "approve":
+        if args.command == "validate":
+            game = validate_game(read_json(args.draft), args.draft)
+            print(f"Validated {game['id']}@{game['revision']}")
+        elif args.command == "approve":
             approve(args.store, args.draft)
         elif args.command == "build":
             build_apk(args)

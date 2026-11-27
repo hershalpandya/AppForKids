@@ -19,7 +19,7 @@ def adb(*arguments, check=True):
     )
 
 
-def visible_matches(text, package=PACKAGE):
+def visible_matches(text, package=PACKAGE, *, absent=(), rotation=None):
     deadline = time.monotonic() + 20
     last_labels = []
     while time.monotonic() < deadline:
@@ -28,24 +28,28 @@ def visible_matches(text, package=PACKAGE):
         if dumped.returncode == 0:
             result = adb("exec-out", "cat", HIERARCHY, check=False)
             if result.returncode == 0 and result.stdout.strip().startswith("<?xml"):
+                hierarchy = ET.fromstring(result.stdout)
                 nodes = [
                     node
-                    for node in ET.fromstring(result.stdout).iter("node")
+                    for node in hierarchy.iter("node")
                     if node.get("package") == package
                 ]
                 matches = [
                     node for node in nodes
                     if node.get("text") == text and node.get("enabled") == "true"
                 ]
-                if matches:
+                if matches and (rotation is None or hierarchy.get("rotation") == str(rotation)):
+                    labels = {node.get("text") for node in nodes}
+                    if unexpected := labels.intersection(absent):
+                        raise AssertionError(f"Unexpected visible labels: {sorted(unexpected)!r}")
                     return matches
                 last_labels = [node.get("text") for node in nodes if node.get("text")]
         time.sleep(0.5)
     raise AssertionError(f"Expected visible text {text!r}. Last app labels: {last_labels!r}")
 
 
-def visible(text, package=PACKAGE):
-    return visible_matches(text, package)[0]
+def visible(text, package=PACKAGE, *, absent=(), rotation=None):
+    return visible_matches(text, package, absent=absent, rotation=rotation)[0]
 
 
 def tap(text, package=PACKAGE):
@@ -72,7 +76,7 @@ def play_starter():
         raise AssertionError(launched.stdout + launched.stderr)
     visible("Choisis ton année")
     tap("P1")
-    visible("Compte des groupes de 1 à 10 étoiles.")
+    visible("Compte des groupes de 1 à 10 étoiles.", absent=("Les mots de même sens",))
     tap("Les étoiles à compter")
     visible("Exemple : ★ ★ ★ = 3")
     tap("Jouer")
@@ -91,6 +95,38 @@ def play_starter():
     visible("Question 1 sur 3")
     tap("Retour au catalogue")
     visible("Compte des groupes de 1 à 10 étoiles.")
+    tap("Changer d’année")
+    tap("P3")
+    visible("Les mots de même sens", absent=("Les étoiles à compter",))
+    tap("Les mots de même sens")
+    visible("Exemple : vite ↔ rapidement")
+    tap("Jouer")
+    visible("Paires associées : 0 sur 3")
+    tap("content")
+    visible("Mot choisi : content")
+    tap("débuter")
+    visible("Sami est content de gagner. Quel mot dit aussi qu’il a de la joie ?")
+    visible("Paires associées : 0 sur 3")
+    tap("heureux")
+    visible("Oui ! Sami est content : il est heureux.")
+    visible("Paires associées : 1 sur 3")
+    tap("commencer")
+    tap("débuter")
+    tap("joli")
+    tap("beau")
+    visible("Paires associées : 3 sur 3")
+    tap("Terminer")
+    visible("Partie terminée !")
+    tap("Rejouer")
+    visible("Paires associées : 0 sur 3")
+    tap("Retour au catalogue")
+    tap("Changer d’année")
+    tap("P1")
+    tap("Les étoiles à compter")
+    tap("Jouer")
+    visible("Question 1 sur 3")
+    tap("4")
+    visible("Bravo, il y a 4 étoiles !")
     airplane_mode_is_on()
 
 
@@ -109,17 +145,17 @@ def main():
 
     suite = ET.Element("testsuite", name="APK smoke", tests="1", failures=str(int(bool(failure))))
     case = ET.SubElement(
-        suite, "testcase", name="P1 pupil plays a round in airplane mode",
+        suite, "testcase", name="Pupils switch years and play both starters in airplane mode",
         time=f"{time.monotonic() - started:.2f}",
     )
     if failure:
         ET.SubElement(case, "failure", message="The installed APK failed the UI smoke test").text = failure
     ET.ElementTree(suite).write(
-        report_directory / "p1-smoke.xml", encoding="utf-8", xml_declaration=True
+        report_directory / "starters-smoke.xml", encoding="utf-8", xml_declaration=True
     )
     if failure:
         return 1
-    print("P1 offline APK smoke test passed.")
+    print("P1 and P3 offline APK smoke test passed.")
     return 0
 
 

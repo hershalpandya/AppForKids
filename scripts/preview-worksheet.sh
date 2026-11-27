@@ -12,8 +12,10 @@ if [[ $# != 1 || $1 != *.json || ! -f $1 || ! -r $1 ]]; then
     exit 2
 fi
 
+repo=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+python3 "$repo/scripts/release.py" validate "$1"
+
 if "$build_preview"; then
-    repo=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
     "$repo/gradlew" -p "$repo" :app:assembleDebug
     adb install -r "$repo/app/build/outputs/apk/debug/app-debug.apk"
 fi

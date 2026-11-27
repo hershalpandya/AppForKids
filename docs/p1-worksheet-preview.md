@@ -8,7 +8,7 @@ Open Codex in the AppForKids checkout and send a request like this with the reda
 >
 > Tell me what you read with a page and item reference for each exercise. Flag unreadable, missing or conflicting information and use the clear exercises for the first draft. Ask me to confirm any doubtful items you want to include. Give me a JSON draft and a separate answer key listing each question, its visual rows and choices, the solution, the success feedback and the retry hint. Keep the files in my private worksheet folder. Use the preview workflow in this guide to make the draft playable.
 
-Review the page references and answer key, then play through the draft. A correction can be as short as “In question 2, use page 2, item C. The diagram has four and three counters, so seven is correct. Keep question 1 and show me the updated key and preview.” The agent keeps the same game ID and increments the revision when applying a correction. If an exercise needs a different interaction, the agent explains what the current tap-to-choose game can faithfully cover.
+Review the page references and answer key, then play through the draft. A correction can be as short as “In question 2, use page 2, item C. The diagram has four and three counters, so seven is correct. Keep question 1 and show me the updated key and preview.” The agent keeps the same game ID and increments the revision when applying a correction. For exercises that ask pupils to match pairs, use the [matching workflow](p3-worksheet-preview.md). For a different interaction, see the [extension guide](game-mechanics.md).
 
 ## Open or replace the draft
 

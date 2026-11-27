@@ -2,6 +2,9 @@
 <resources>
     <string name="app_name">AppForKids</string>
     <string name="question_progress">Question %1$d sur %2$d</string>
+    <string name="pair_progress">Paires associées : %1$d sur %2$d</string>
+    <string name="chosen_word">Mot choisi : %1$s</string>
+    <string name="matched_word">%1$s, associé</string>
     <style name="AppThemeBase" parent="android:style/Theme.Material.Light.NoActionBar">
         <item name="android:fontFamily">sans-serif</item>
         <item name="android:windowLightStatusBar">true</item>

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Play the reviewed worksheet fixture through the installed preview APK."""
+"""Play the reviewed worksheet fixtures through the installed preview APK."""
 
 import json
+import re
 import subprocess
 import sys
 from functools import partial
@@ -9,15 +10,17 @@ from pathlib import Path
 from zipfile import ZipFile
 
 from smoke_test import PACKAGE as RELEASE_PACKAGE
-from smoke_test import adb, airplane_mode_is_on, tap, visible
+from smoke_test import adb, airplane_mode_is_on, tap, visible, visible_matches
 
 PACKAGE = "be.hershalpandya.appforkids.preview"
-FIXTURE = Path(__file__).resolve().parents[1] / "tests/fixtures/les-jetons-a-reunir.json"
+FIXTURES = Path(__file__).resolve().parents[1] / "tests/fixtures"
+P1_FIXTURE = FIXTURES / "les-jetons-a-reunir.json"
+P3_FIXTURE = FIXTURES / "les-mots-de-meme-sens-corrige.json"
 
 
-def play_worksheet():
+def play_p1_worksheet():
     airplane_mode_is_on()
-    subprocess.run(["bash", "scripts/preview-worksheet.sh", str(FIXTURE)], check=True)
+    subprocess.run(["bash", "scripts/preview-worksheet.sh", str(P1_FIXTURE)], check=True)
     see = partial(visible, package=PACKAGE)
     touch = partial(tap, package=PACKAGE)
     see("Aperçu du brouillon")
@@ -48,6 +51,49 @@ def play_worksheet():
     airplane_mode_is_on()
 
 
+def play_p3_worksheet():
+    airplane_mode_is_on()
+    subprocess.run(["bash", "scripts/preview-worksheet.sh", str(P3_FIXTURE)], check=True)
+    see = partial(visible, package=PACKAGE)
+    touch = partial(tap, package=PACKAGE)
+    see("Aperçu du brouillon")
+    touch("P3")
+    if len(visible_matches("Les mots de même sens", PACKAGE)) != 1:
+        raise AssertionError("The matching draft must replace the bundled game in the preview")
+    touch("Les mots de même sens")
+    touch("Jouer")
+    touch("content")
+    source_x = int(re.match(r"\[(\d+),", see("content").attrib["bounds"])[1])
+    answer_x = int(re.match(r"\[(\d+),", see("heureux").attrib["bounds"])[1])
+    if source_x >= answer_x:
+        raise AssertionError("The source words must be in the physical left column")
+    touch("heureux")
+    touch("commencer")
+    touch("beau")
+    hint = "Les acteurs entrent en scène. Quel mot peut remplacer « commencer » ?"
+    see(hint)
+
+    original_rotation = adb("shell", "wm", "user-rotation").stdout.split()
+    try:
+        adb("shell", "wm", "user-rotation", "lock", "0")
+        see(hint, rotation=0)
+        adb("shell", "wm", "user-rotation", "lock", "1")
+        see(hint, rotation=1)
+        see("Paires associées : 1 sur 3")
+        if see("commencer").get("selected") != "true":
+            raise AssertionError("Recreating the matching round must restore the selected tile")
+        see("Mot choisi : commencer")
+    finally:
+        adb("shell", "wm", "user-rotation", *original_rotation)
+
+    touch("débuter")
+    touch("joli")
+    touch("beau")
+    touch("Terminer")
+    see("Bravo, tu as retrouvé toutes les paires de synonymes !")
+    airplane_mode_is_on()
+
+
 def verify_release_isolation(apk):
     # Inspect the exact signed artifact installed by the release smoke test.
     with ZipFile(apk) as archive:
@@ -56,7 +102,7 @@ def verify_release_isolation(apk):
         bundled_games = json.loads(archive.read(catalogue))["games"]
         expected_assets = {catalogue, *(f"assets/games/{game}" for game in bundled_games)}
         actual_assets = {entry for entry in entries if entry.startswith("assets/")}
-        if actual_assets != expected_assets or FIXTURE.name in bundled_games:
+        if actual_assets != expected_assets or {P1_FIXTURE.name, P3_FIXTURE.name}.intersection(bundled_games):
             raise AssertionError(f"Unexpected release assets: {sorted(actual_assets)}")
         for entry in entries:
             if entry.startswith("classes") and entry.endswith(".dex"):
@@ -72,7 +118,8 @@ def verify_release_isolation(apk):
 if __name__ == "__main__":
     if len(sys.argv) != 2:
         raise SystemExit("Usage: worksheet_smoke_test.py SIGNED_RELEASE_APK")
-    play_worksheet()
-    print("P1 worksheet preview APK smoke test passed.")
+    play_p1_worksheet()
+    play_p3_worksheet()
+    print("P1 and P3 worksheet previews passed the offline APK smoke test.")
     verify_release_isolation(sys.argv[1])
     print("Signed release APK excludes the worksheet preview.")

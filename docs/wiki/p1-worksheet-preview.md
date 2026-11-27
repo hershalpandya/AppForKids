@@ -5,3 +5,5 @@ On 2026-11-27, the project owner asked the coding agent to handle the command-li
 The first worksheet preview extended the runtime from the [P1 starter game](p1-starter-game.md) and added an offline fixture to [Android APK testing](android-apk-testing.md). See the [P1 worksheet preview guide](../p1-worksheet-preview.md) for the current workflow.
 
 On 2026-11-27, `hershalpandya/AppForKids@77720c0` added [P1 approved releases](p1-approved-release.md) as the next step after a parent checked the preview. [Release ticket](https://github.com/hershalpandya/AppForKids/issues/4)
+
+On 2026-11-27, `hershalpandya/AppForKids@1ced40d` extended the shared preview app to the [P3 matching starter](p3-matching-starter.md).
