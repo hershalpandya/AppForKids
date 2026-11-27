@@ -4,7 +4,7 @@ AppForKids débute avec **Les étoiles à compter**, un jeu hors ligne pour les 
 
 ## Preview a worksheet game
 
-In Codex, attach redacted worksheet pages and use `$worksheet-to-game` with the year, learning goal and teaching constraints. The agent prepares the draft and opens it on an Android emulator for your review. See the [P1 worksheet workflow](docs/wiki/p1-worksheet-preview.md) for a sample request and correction.
+In Codex, attach redacted worksheet pages and use `$worksheet-to-game` with the year, learning goal and teaching constraints. The agent prepares the draft and opens it on an Android emulator for your review. See the [P1 worksheet workflow](docs/p1-worksheet-preview.md) for a sample request and correction.
 
 ## Build the family APK
 

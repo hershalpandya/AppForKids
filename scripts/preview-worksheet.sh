@@ -32,4 +32,11 @@ if ! adb shell -T "run-as $package sh -c '$install_draft'" < "$1"; then
     echo 'Could not load the draft. Check the adb device and install the debug APK first.' >&2
     exit 1
 fi
-adb shell am start -W -S -f 0x10008000 -n "$package/be.hershalpandya.appforkids.MainActivity"
+if ! launch_output=$(adb shell am start -W -S -f 0x10008000 \
+    -n "$package/be.hershalpandya.appforkids.MainActivity" 2>&1) ||
+    ! grep -q '^Status: ok[[:space:]]*$' <<< "$launch_output"; then
+    echo 'Could not launch the worksheet preview.' >&2
+    printf '%s\n' "$launch_output" >&2
+    exit 1
+fi
+printf '%s\n' "$launch_output"

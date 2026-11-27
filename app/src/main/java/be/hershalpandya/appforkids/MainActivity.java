@@ -56,29 +56,7 @@ public final class MainActivity extends Activity {
             return;
         }
 
-        if (BuildConfig.DEBUG) {
-            previewMessage = "Aperçu du brouillon";
-            File draft = getFileStreamPath("worksheet-draft.json");
-            if (draft.exists()) {
-                try (InputStream input = openFileInput(draft.getName())) {
-                    GameDefinition candidate = GameDefinition.load(input);
-                    if (!candidate.year.equals("P1")) {
-                        throw new JSONException("The preview currently supports P1 games");
-                    }
-                    int index = 0;
-                    while (index < games.size() && !games.get(index).id.equals(candidate.id)) {
-                        index++;
-                    }
-                    if (index == games.size()) {
-                        games.add(candidate);
-                    } else {
-                        games.set(index, candidate);
-                    }
-                } catch (IOException | JSONException error) {
-                    previewMessage = "Impossible d’ouvrir le brouillon P1.";
-                }
-            }
-        }
+        loadWorksheetPreview();
 
         if (savedState != null) {
             screen = Screen.valueOf(savedState.getString("screen", Screen.HOME.name()));
@@ -120,6 +98,34 @@ public final class MainActivity extends Activity {
             super.onBackPressed();
         } else {
             show(screen == Screen.CATALOGUE ? Screen.HOME : Screen.CATALOGUE);
+        }
+    }
+
+    private void loadWorksheetPreview() {
+        if (!BuildConfig.DEBUG) {
+            return;
+        }
+
+        previewMessage = "Aperçu du brouillon";
+        File draft = getFileStreamPath("worksheet-draft.json");
+        if (!draft.exists()) {
+            return;
+        }
+
+        try (InputStream input = openFileInput(draft.getName())) {
+            GameDefinition candidate = GameDefinition.load(input);
+            if (!candidate.year.equals("P1")) {
+                throw new JSONException("The preview currently supports P1 games");
+            }
+            for (int index = 0; index < games.size(); index++) {
+                if (games.get(index).id.equals(candidate.id)) {
+                    games.set(index, candidate);
+                    return;
+                }
+            }
+            games.add(candidate);
+        } catch (IOException | JSONException error) {
+            previewMessage = "Impossible d’ouvrir le brouillon P1.";
         }
     }
 
