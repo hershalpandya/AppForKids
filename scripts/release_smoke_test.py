@@ -62,6 +62,7 @@ def verify_installed_update(apk):
         raise AssertionError(launched.stdout + launched.stderr)
 
     tap("Alice")
+    tap("Année : Toutes")
     tap("P1")
     if len(visible_matches("Les étoiles à compter (corrigé)")) != 1:
         raise AssertionError("The corrected stars game must appear once in the P1 catalogue")
@@ -91,7 +92,7 @@ def verify_installed_update(apk):
     visible("Bravo, 3 et 2 font 5 jetons !")
     tap("Retour au catalogue")
     visible("Les étoiles à compter (corrigé)")
-    tap("Changer d’année")
+    tap("Année : P1")
     tap("P3")
     if len(visible_matches("Les mots de même sens")) != 1:
         raise AssertionError("The corrected synonyms game must appear once in the P3 catalogue")
