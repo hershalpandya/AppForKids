@@ -17,7 +17,7 @@ jobs:
     name: Grype vulnerability scan
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Scan repository with Grype
         uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
@@ -33,7 +33,7 @@ jobs:
     env:
       ANDROID_TABLET_IMAGE: 'system-images;android-35;default;x86_64'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
