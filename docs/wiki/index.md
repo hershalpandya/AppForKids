@@ -12,6 +12,10 @@
 - [P1 approved releases](p1-approved-release.md) records revision approval, recovery and signed tablet updates.
 - [P3 matching starter](p3-matching-starter.md) records the French synonym activity and its curriculum, preview and release checks.
 
+## Family app
+
+- [Child selection and local data](child-selection.md) records profile behavior and unverified backup and transfer limits.
+
 ## Planning
 
 - [Design planning](design-planning.md) records the scope and proposed visual direction.
