@@ -101,7 +101,10 @@ public final class MainActivity extends Activity {
                 for (Child child : children) {
                     if (child.id.equals(childId)) selectedChild = child;
                 }
-                if (selectedChild != null && !profilesDamaged) restoreScreen(savedState);
+                if (!profilesDamaged && (selectedChild != null
+                        || Screen.CHOOSER.name().equals(savedState.getString("screen")))) {
+                    restoreScreen(savedState);
+                }
             }
         }
         render();
@@ -119,7 +122,7 @@ public final class MainActivity extends Activity {
         subject = state.getString("subject");
         topicSubject = state.getString("topicSubject");
         topic = state.getString("topic");
-        if (screen == Screen.HOME || screen == Screen.CATALOGUE) {
+        if (screen == Screen.CHOOSER || screen == Screen.HOME || screen == Screen.CATALOGUE) {
             return;
         }
 
@@ -266,6 +269,7 @@ public final class MainActivity extends Activity {
                             }).show()));
                     break;
                 }
+                if (readResults() == null) recoveryButton(content);
                 if (children.isEmpty()) body(content, "Demande à un parent d’ajouter un enfant.");
                 for (Child child : children) {
                     button(content, child.name, 30, true, () -> { selectedChild = child; show(Screen.CATALOGUE); });
@@ -278,7 +282,10 @@ public final class MainActivity extends Activity {
 
             case CATALOGUE:
                 heading(content, "Les jeux", 38);
-                if (selectedChild != null) button(content, "Réinitialiser les résultats", 20, false, () -> parentCheck(this::confirmReset));
+                if (selectedChild != null) {
+                    if (readResults() == null) recoveryButton(content);
+                    button(content, "Réinitialiser les résultats", 20, false, () -> parentCheck(this::confirmReset));
+                }
                 renderFilters(content);
                 int count = 0;
                 for (GameDefinition entry : games) {
@@ -341,7 +348,7 @@ public final class MainActivity extends Activity {
                 String name = item.getString("name");
                 if (id.isEmpty() || name.isEmpty()) throw new JSONException("Invalid profile");
                 for (Child existing : children) {
-                    if (existing.id.equals(id) || existing.name.equalsIgnoreCase(name))
+                    if (existing.id.equals(id) || sameChildName(existing.name, name))
                         throw new JSONException("Duplicate profile");
                 }
                 children.add(new Child(id, name));
@@ -391,6 +398,10 @@ public final class MainActivity extends Activity {
         dialog.show();
     }
 
+    private boolean sameChildName(String first, String second) {
+        return first.toLowerCase(Locale.ROOT).equals(second.toLowerCase(Locale.ROOT));
+    }
+
     private boolean containsControl(String value) {
         for (int i = 0; i < value.length(); i++) {
             if (Character.isISOControl(value.charAt(i))) return true;
@@ -412,7 +423,7 @@ public final class MainActivity extends Activity {
                 return;
             }
             for (Child child : children) {
-                if (child.name.toLowerCase(Locale.ROOT).equals(value.toLowerCase(Locale.ROOT))) {
+                if (sameChildName(child.name, value)) {
                     name.setError("Ce nom existe déjà. Choisis un autre surnom.");
                     return;
                 }
@@ -447,21 +458,57 @@ public final class MainActivity extends Activity {
     }
 
     // Results are keyed by opaque profile and game IDs; a result is never written during play.
+    private boolean validChildResults(JSONObject games) {
+        try {
+            java.util.Iterator<String> ids = games.keys();
+            while (ids.hasNext()) {
+                JSONObject result = games.getJSONObject(ids.next());
+                if (result.getInt("revision") < 1 || result.getInt("count") < 1) return false;
+            }
+            return true;
+        } catch (JSONException error) { return false; }
+    }
+
     private JSONObject readResults() {
         try {
             JSONObject results = new JSONObject(getPreferences(MODE_PRIVATE).getString(RESULTS, "{}"));
-            java.util.Iterator<String> children = results.keys();
-            while (children.hasNext()) {
-                JSONObject games = results.getJSONObject(children.next());
-                java.util.Iterator<String> ids = games.keys();
-                while (ids.hasNext()) {
-                    JSONObject result = games.getJSONObject(ids.next());
-                    if (result.getInt("revision") < 1 || result.getInt("count") < 1)
-                        throw new JSONException("Invalid result");
-                }
+            java.util.Iterator<String> ids = results.keys();
+            while (ids.hasNext()) {
+                JSONObject games = results.optJSONObject(ids.next());
+                if (games == null || !validChildResults(games)) return null;
             }
             return results;
         } catch (JSONException | ClassCastException error) { return null; }
+    }
+
+    private void recoveryButton(LinearLayout content) {
+        button(content, "Réparer les résultats endommagés", 20, false,
+                () -> parentCheck(this::confirmResultsRecovery));
+    }
+
+    private void confirmResultsRecovery() {
+        JSONObject recovered = new JSONObject();
+        boolean unreadable = false;
+        try {
+            JSONObject stored = new JSONObject(getPreferences(MODE_PRIVATE).getString(RESULTS, "{}"));
+            java.util.Iterator<String> ids = stored.keys();
+            while (ids.hasNext()) {
+                String id = ids.next();
+                JSONObject games = stored.optJSONObject(id);
+                if (games != null && validChildResults(games)) recovered.put(id, games);
+            }
+        } catch (JSONException | ClassCastException error) { unreadable = true; }
+        String message = unreadable ? "Tous les résultats enregistrés seront perdus."
+                : "Les résultats endommagés seront perdus. Les résultats lisibles des autres enfants seront conservés.";
+        new AlertDialog.Builder(this).setTitle("Réparer les résultats ?").setMessage(message)
+                .setNegativeButton("Annuler", null).setPositiveButton("Réparer", (dialog, which) -> {
+                    if (getPreferences(MODE_PRIVATE).edit().putString(RESULTS, recovered.toString()).commit()) {
+                        render();
+                    } else {
+                        new AlertDialog.Builder(this).setMessage("Réparation impossible. Réessaie.")
+                                .setPositiveButton("OK", null).show();
+                    }
+                }).show();
     }
 
     private void showResult(LinearLayout card, GameDefinition entry) {
@@ -500,7 +547,7 @@ public final class MainActivity extends Activity {
                 }
             } catch (JSONException ignored) { }
         }
-        new AlertDialog.Builder(this).setMessage("Impossible d’enregistrer le résultat. Réessaie.")
+        new AlertDialog.Builder(this).setMessage("Impossible d’enregistrer le résultat. Retourne au catalogue pour réparer les résultats avec un parent.")
                 .setPositiveButton("OK", null).show();
     }
 
