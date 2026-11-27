@@ -61,6 +61,7 @@ def verify_installed_update(apk):
     if "Status: ok" not in launched.stdout:
         raise AssertionError(launched.stdout + launched.stderr)
 
+    tap("Alice")
     tap("P1")
     if len(visible_matches("Les étoiles à compter (corrigé)")) != 1:
         raise AssertionError("The corrected stars game must appear once in the P1 catalogue")

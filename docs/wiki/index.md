@@ -14,6 +14,10 @@
 
 - [Classification contract](../classification-contract.md) describes the implemented schema, approved vocabulary and legacy compatibility.
 
+## Family app
+
+- [Child selection and local data](child-selection.md) records profile behavior and unverified backup and transfer limits.
+
 ## Planning
 
 - [Design planning](design-planning.md) records the scope and proposed visual direction.
