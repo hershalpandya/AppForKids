@@ -1,0 +1,9 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="240dp" android:height="56dp" android:viewportWidth="240" android:viewportHeight="56">
+    <!-- Decorative hills and clouds, kept outside the learning content. -->
+    <path android:fillColor="#DDEEFF" android:pathData="M0,31 C19,13 39,17 60,31 C84,9 112,15 133,31 C164,10 188,17 211,31 C222,24 232,24 240,29 L240,56 L0,56 Z"/>
+    <path android:fillColor="#A9DC8B" android:pathData="M0,48 C30,25 55,30 82,49 C109,34 129,32 157,49 C190,24 216,32 240,45 L240,56 L0,56 Z"/>
+    <path android:fillColor="#FFFFFF" android:pathData="M19,16 C18,10 25,8 29,11 C31,4 42,5 43,12 C49,10 53,13 52,17 L19,17 Z M175,13 C174,8 180,6 184,9 C187,3 196,5 197,10 C202,8 206,11 205,14 L175,14 Z"/>
+    <path android:fillColor="#7555C4" android:pathData="M106,11 C103,6 108,2 112,5 C116,7 114,12 112,16 C109,20 104,19 104,16 C104,14 105,12 106,11 Z M119,16 C117,12 119,8 123,8 C127,8 128,12 126,15 C124,20 119,21 118,18 Z"/>
+    <path android:fillColor="#2076CA" android:pathData="M137,11 C140,6 135,2 131,5 C127,7 129,12 131,16 C134,20 139,19 139,16 C139,14 138,12 137,11 Z M124,16 C126,12 124,8 120,8 C116,8 115,12 117,15 C119,20 124,21 125,18 Z"/>
+</vector>
