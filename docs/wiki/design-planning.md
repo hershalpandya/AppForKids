@@ -1,3 +1,5 @@
 # Design planning
 
 On 2026-11-27, the family requested planning for the app's design, profiles, privacy and game organization. The planning scope called for review and agreement before implementation. The visual-direction ticket produced a [proposal](../proposed-visual-direction.md) for a name, shared design source, adoption and tablet review; its choices remain open for family review. [Source request #13](https://github.com/hershalpandya/AppForKids/issues/13) · [Planning spec #22](https://github.com/hershalpandya/AppForKids/issues/22) · [Visual proposal #23](https://github.com/hershalpandya/AppForKids/issues/23) · [Visual proposal PR #30](https://github.com/hershalpandya/AppForKids/pull/30)
+
+On 2026-11-27, [PR #28](https://github.com/hershalpandya/AppForKids/pull/28) proposed child selection and privacy planning for [issue #24](https://github.com/hershalpandya/AppForKids/issues/24), and [PR #29](https://github.com/hershalpandya/AppForKids/pull/29) proposed game classification and browsing for [issue #25](https://github.com/hershalpandya/AppForKids/issues/25). Both proposals await family review; their product choices are not agreed decisions.
