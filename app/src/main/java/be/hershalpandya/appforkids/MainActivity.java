@@ -458,15 +458,19 @@ public final class MainActivity extends Activity {
     }
 
     // Results are keyed by opaque profile and game IDs; a result is never written during play.
-    private boolean validChildResults(JSONObject games) {
+    private boolean validGameResult(JSONObject result) {
+        if (result == null) return false;
         try {
-            java.util.Iterator<String> ids = games.keys();
-            while (ids.hasNext()) {
-                JSONObject result = games.getJSONObject(ids.next());
-                if (result.getInt("revision") < 1 || result.getInt("count") < 1) return false;
-            }
-            return true;
+            return result.getInt("revision") >= 1 && result.getInt("count") >= 1;
         } catch (JSONException error) { return false; }
+    }
+
+    private boolean validChildResults(JSONObject games) {
+        java.util.Iterator<String> ids = games.keys();
+        while (ids.hasNext()) {
+            if (!validGameResult(games.optJSONObject(ids.next()))) return false;
+        }
+        return true;
     }
 
     private JSONObject readResults() {
@@ -495,14 +499,26 @@ public final class MainActivity extends Activity {
             while (ids.hasNext()) {
                 String id = ids.next();
                 JSONObject games = stored.optJSONObject(id);
-                if (games != null && validChildResults(games)) recovered.put(id, games);
+                if (games == null) continue;
+                JSONObject validGames = new JSONObject();
+                java.util.Iterator<String> gameIds = games.keys();
+                while (gameIds.hasNext()) {
+                    String gameId = gameIds.next();
+                    JSONObject result = games.optJSONObject(gameId);
+                    if (validGameResult(result)) validGames.put(gameId, result);
+                }
+                recovered.put(id, validGames);
             }
-        } catch (JSONException | ClassCastException error) { unreadable = true; }
+        } catch (JSONException | ClassCastException error) {
+            unreadable = true;
+            recovered = new JSONObject();
+        }
         String message = unreadable ? "Tous les résultats enregistrés seront perdus."
-                : "Les résultats endommagés seront perdus. Les résultats lisibles des autres enfants seront conservés.";
+                : "Les résultats endommagés seront perdus. Les résultats lisibles seront conservés, y compris ceux du même enfant.";
+        JSONObject resultsToSave = recovered;
         new AlertDialog.Builder(this).setTitle("Réparer les résultats ?").setMessage(message)
                 .setNegativeButton("Annuler", null).setPositiveButton("Réparer", (dialog, which) -> {
-                    if (getPreferences(MODE_PRIVATE).edit().putString(RESULTS, recovered.toString()).commit()) {
+                    if (getPreferences(MODE_PRIVATE).edit().putString(RESULTS, resultsToSave.toString()).commit()) {
                         render();
                     } else {
                         new AlertDialog.Builder(this).setMessage("Réparation impossible. Réessaie.")
