@@ -67,18 +67,22 @@ def main():
         adb("shell", "wm", "user-rotation", *original)
 
     profiles = [{"id": "a", "name": "Alice"}, {"id": "b", "name": "Bob"}]
-    results = json.dumps({"a": {"compter-les-etoiles": {"revision": 1, "count": 3}}, "b": "damaged"})
+    results = json.dumps({
+        "a": {"compter-les-etoiles": {"revision": 1, "count": 3},
+              "les-mots-de-meme-sens": {"revision": 1, "count": 0}},
+        "b": "damaged",
+    })
     seed(profiles, results)
     tap("Alice")
     tap("Réparer les résultats endommagés")
     parent()
-    visible("Réparer les résultats ?")
+    visible("Les résultats endommagés seront perdus. Les résultats lisibles seront conservés, y compris ceux du même enfant.")
     tap("Annuler")
     visible("Réparer les résultats endommagés")
     tap("Réparer les résultats endommagés")
     parent()
     tap("Réparer")
-    visible("★ Jeu terminé")
+    visible("★ Jeu terminé", absent=("Réparer les résultats endommagés",))
     tap("Changer d’enfant")
     tap("Supprimer Bob")
     parent()
