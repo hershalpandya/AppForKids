@@ -7,3 +7,5 @@ On 2026-11-27, [PR #28](https://github.com/hershalpandya/AppForKids/pull/28) pro
 On 2026-11-27, the family chose **Petits Pas** as the app name and requested a brighter, more colorful visual style. The precise palette, illustrations and preview label remain open for review and physical-tablet testing; [PR #30](https://github.com/hershalpandya/AppForKids/pull/30) records the updated proposal.
 
 On 2026-11-27, the family chose an all-games catalogue with optional year, subject and topic filters. The visual proposal follows that browsing choice; filter and card layout details remain open for review.
+
+On 2026-11-27, the [worksheet adoption plan](../worksheet-adoption-plan.md) connected the agreed visual and browsing choices to private drafting, preview, parent review and release compatibility for [issue #26](https://github.com/hershalpandya/AppForKids/issues/26). It is planning only; unresolved design, vocabulary and migration details remain for review.
