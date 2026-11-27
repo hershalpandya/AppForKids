@@ -28,7 +28,6 @@ jobs:
       - name: Install SDK and tablet system image
         run: |
           mkdir -p build/ci
-          exec > >(tee build/ci/sdk-install.log) 2>&1
           export ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$RUNNER_TEMP/android-sdk}}"
           export ANDROID_SDK_ROOT="$ANDROID_HOME"
           tools_dir="$ANDROID_HOME/cmdline-tools/latest/bin"
@@ -47,7 +46,8 @@ jobs:
             (set +o pipefail; yes | "$tools_dir/sdkmanager" --sdk_root="$ANDROID_HOME" --licenses)
           fi
           "$tools_dir/sdkmanager" --sdk_root="$ANDROID_HOME" --install \
-            "platforms;android-35" "build-tools;35.0.0" "platform-tools" "emulator" "$ANDROID_TABLET_IMAGE"
+            "platforms;android-35" "build-tools;35.0.0" "platform-tools" "emulator" "$ANDROID_TABLET_IMAGE" \
+            2>&1 | tee build/ci/sdk-install.log
           printf 'ANDROID_HOME=%s\nANDROID_SDK_ROOT=%s\n' "$ANDROID_HOME" "$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
           printf '%s\n' "$tools_dir" >> "$GITHUB_PATH"
 
