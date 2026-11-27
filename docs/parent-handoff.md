@@ -32,7 +32,7 @@ Compare the source review with the pages. For the sample, the agent can use page
 
 ## Play the preview and request changes
 
-Ask the agent to open **AppForKids · Aperçu** on the emulator and leave the draft at its instructions screen. From the app’s home screen, check for **Aperçu du brouillon**, choose the target year and open the draft by title. Check the displayed subject and topics with the [classification contract](classification-contract.md). Read the example, tap **Jouer** and play every question. Try a wrong answer and retry. Check the feedback against the key. Finish the round, replay and return to the catalogue.
+Ask the agent to open **Petits Pas · Aperçu** on the emulator and leave the draft at its instructions screen. From the app’s home screen, check for **Aperçu du brouillon** and find the draft by title in the all-games catalogue. Check the year and displayed subject and topics with the [classification contract](classification-contract.md); try the applicable year, subject and topic filters, clear them and check no-match recovery. Raise uncertain labels with the agent. Review legibility and touch targets against the [visual source](proposed-visual-direction.md). Read the example, tap **Jouer** and play every question. Try a wrong answer and retry. Check the feedback against the key. Finish the round, replay and return to the catalogue.
 
 For your own worksheet, set `family_draft` to the path of the private JSON the agent saved. The agent can build and open the preview with these commands. After a correction, set `family_draft` to the revised file and rerun the preview command without `--build`.
 
@@ -69,7 +69,7 @@ python3 scripts/release.py validate "$family_draft"
 
 If validation fails, give the agent the file, question number and message. Ask it to correct the draft and key, run validation again and reopen the preview before you approve.
 
-Once you approve the answers, feedback and playable preview for that revision, run the approval command.
+Once you approve the answers, feedback, year, resolved classification and playable preview for that revision, run the approval command.
 
 ```bash
 python3 scripts/release.py approve --store "$family_store" "$family_draft"
@@ -125,7 +125,7 @@ build_signed "$family_keystore" "$family_alias" \
   --version-code 1 --output "$family_apk_dir/appforkids-v1.apk"
 ```
 
-For an update, set `family_previous_apk` to the saved APK currently installed on the tablet and choose a higher Android version code. Replace `family_selector` with the selector printed for your approved family revision. Repeat `--game ID@REVISION` for each other approved game you want to retain. The P1 and P3 starters are included automatically. Selecting an approved correction under the same game ID replaces the old revision in that year.
+For an update, set `family_previous_apk` to the saved APK currently installed on the tablet and choose a higher Android version code. Replace `family_selector` with the selector printed for your approved family revision. Repeat `--game ID@REVISION` for each other approved game you want to retain. The P1 and P3 starters are included automatically. Selecting an approved correction under the same game ID replaces the old revision in the catalogue. Existing schema 1 approvals remain usable without changing their snapshots: only the exact original starter revisions have mapped labels; other schema 1 games show **À classer**. See the [classification contract](classification-contract.md).
 
 ```bash
 family_previous_apk="/absolute/path/to/the-installed-family-release.apk"
@@ -144,14 +144,14 @@ The build checks the Android app ID, signing certificate and version code. Keep 
 
 1. Connect the unlocked tablet to the computer with a data-capable USB cable. If Android asks what to do with USB, select **File transfer**. With a computer that can browse the tablet, copy the APK to **Downloads**. You can also use a USB-C drive if the tablet supports it.
    If your computer cannot browse the tablet and you have Android platform-tools installed, enable **USB debugging** in Android’s developer options and accept the tablet’s USB debugging prompt. Find the tablet serial in `adb devices` and copy the file with `adb -s TABLET_SERIAL push "$family_update_apk" /sdcard/Download/`. Substitute your tablet serial and, for a first installation, use the path to the starter APK. Turn USB debugging off after the transfer. [Android device connection](https://developer.android.com/studio/run/device)
-2. On the tablet, open **Files** and tap the APK. If prompted, open **Settings** from the prompt and enable **Allow from this source** for the app opening the file. Return to the installer. Tap **Install** for a first installation or accept the update over the existing **AppForKids**. Afterwards turn off the permission for the file-opening app.
+2. On the tablet, open **Files** and tap the APK. If prompted, open **Settings** from the prompt and enable **Allow from this source** for the app opening the file. Return to the installer. Tap **Install** for a first installation or accept the update over the existing **Petits Pas**. Afterwards turn off the permission for the file-opening app.
 3. If Android refuses an update, check that the existing app is the family build and that both APKs have the same signing key. Check that the new version code exceeds the installed version and that the transferred file is complete. Keep the existing installation while you correct the problem. Build against the installed APK again and transfer the corrected result.
 
 ## Check the physical tablet in airplane mode
 
 For a first setup, install the family baseline from Files and open both starters before installing the update. Keep the app installed when you open the update APK. Use the original family key for both APKs, including when checking the sample on the physical tablet.
 
-After the update, turn on airplane mode and make sure Wi-Fi is off. Close and reopen **AppForKids**. Check that the new activity card appears once under its intended year and play it to the end with the approved answer key. For the sample, open **Les rangées à comparer** under **P1** and answer **En haut** then **En bas**. Play **Les étoiles à compter** through one round. Use **Changer d’année**, choose **P3** and play **Les mots de même sens** through one round. Try a mistake and retry in each starter. If you selected other approved activities to retain, check that each appears under its year and opens offline. Check that the text and buttons are comfortable to use on the actual tablet.
+After the update, turn on airplane mode and make sure Wi-Fi is off. Close and reopen **Petits Pas**. Select a child, or use **Ajouter un enfant** and the parent check to create a local profile first. The separate worksheet preview does not use profiles. Check that the new activity card appears once under its intended year and play it to the end with the approved answer key. For the sample, open **Les rangées à comparer** under **P1** and answer **En haut** then **En bas**. Play **Les étoiles à compter** through one round. Clear or change the year filter to **P3** and play **Les mots de même sens** through one round. Try a mistake and retry in each starter. If you selected other approved activities to retain, check that each appears under its year and opens offline. Check that the text and buttons are comfortable to use on the actual tablet.
 
 ### Physical tablet verification record
 
@@ -219,13 +219,13 @@ Use `adb devices` to find the clean emulator’s serial, such as `emulator-5554`
 adb -s EMULATOR_SERIAL install "$rehearsal_dir/appforkids-v1.apk"
 ```
 
-Turn on airplane mode and make sure Wi-Fi is off. Open **AppForKids**, play both starters and confirm the sample card is absent from **P1**. Keep the baseline installed and install the update over it while the emulator stays offline.
+Turn on airplane mode and make sure Wi-Fi is off. Open **Petits Pas**, add or select a child, play both starters and confirm the sample card is absent from **P1**. Keep the baseline installed and install the update over it while the emulator stays offline.
 
 ```bash
 adb -s EMULATOR_SERIAL install -r "$rehearsal_dir/appforkids-v2.apk"
 ```
 
-Reopen **AppForKids** while offline. Confirm that **Les rangées à comparer** appears once under **P1** and play it with **En haut** then **En bas**. Confirm the P1 and P3 starters still open. To practise restoring the starters-only catalogue, build version 3 against version 2 with the rehearsal key and omit the `--game` selection. For the physical tablet, use the family-signed APKs and follow the tablet installation steps above.
+Reopen **Petits Pas** while offline and select a child. Confirm that **Les rangées à comparer** appears once under **P1** and play it with **En haut** then **En bas**. Confirm the P1 and P3 starters still open. To practise restoring the starters-only catalogue, build version 3 against version 2 with the rehearsal key and omit the `--game` selection. For the physical tablet, use the family-signed APKs and follow the tablet installation steps above.
 
 ## Find CI results and diagnostic files
 

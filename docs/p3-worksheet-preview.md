@@ -1,6 +1,6 @@
 # P3 worksheet to matching game
 
-[Les mots de même sens](../app/src/main/assets/games/les-mots-de-meme-sens.json) is the original French starter for P3. It comes from the [synthetic worksheet transcription](p3-synonyms-worksheet.md). Choose **P3**, open the game, and tap **Jouer**. Tap a word at the left and its synonym at the right. A hint lets you retry with the same word. After all pairs are matched, tap **Terminer** to finish, then **Rejouer** or **Retour au catalogue**.
+[Les mots de même sens](../app/src/main/assets/games/les-mots-de-meme-sens.json) is the original French starter for P3. It comes from the [synthetic worksheet transcription](p3-synonyms-worksheet.md). Find the game in the all-games catalogue (optionally filter by **P3**), open it, and tap **Jouer**. Tap a word at the left and its synonym at the right. A hint lets you retry with the same word. After all pairs are matched, tap **Terminer** to finish, then **Rejouer** or **Retour au catalogue**.
 
 ## Sample parent request
 
@@ -29,7 +29,7 @@ Use the [preview prerequisites](p1-worksheet-preview.md#agent-setup), with an An
 bash scripts/preview-worksheet.sh --build tests/fixtures/les-mots-de-meme-sens-corrige.json
 ```
 
-In **AppForKids · Aperçu**, open **P3** and **Les mots de même sens**. Tap **commencer**, then **beau** to check the changed hint. Tap **débuter** to retry, match the other pairs against the answer key, and finish the round. Run the same preview command without `--build` after updating the draft. The preview helper validates the draft before loading it.
+In **Petits Pas · Aperçu**, check **Aperçu du brouillon**, then find **Les mots de même sens** in the all-games catalogue. This schema 1 correction shows **À classer** because only the exact original starter revision has a legacy mapping. Check year and labels, filter by year, clear filters and check no-match recovery. A same-ID draft appears once in place of the bundled game. Open the draft and tap **Jouer**. Tap **commencer**, then **beau** to check the changed hint. Tap **débuter** to retry, match the other pairs against the answer key, finish, replay and return to the catalogue. Check the shared [visual source](proposed-visual-direction.md), including readable tiles and selection and feedback states. Run the same preview command without `--build` after updating the draft. The preview helper validates the draft before loading it. For new classified drafts use schema 2 and the [classification contract](classification-contract.md), review the year and resolved labels with the parent, and try each applicable subject and topic filter. The [classified synthetic revision](../tests/fixtures/les-mots-classifies.json) demonstrates multiple subjects; its classification is a test fixture, not a curriculum recommendation.
 
 After reviewing the exact revision, record approval in private storage and use the [signed release workflow](parent-handoff.md#validate-and-approve-the-exact-revision) with the printed selector.
 
