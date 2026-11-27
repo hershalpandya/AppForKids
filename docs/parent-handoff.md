@@ -32,7 +32,7 @@ Compare the source review with the pages. For the sample, the agent can use page
 
 ## Play the preview and request changes
 
-Ask the agent to open **AppForKids · Aperçu** on the emulator and leave the draft at its instructions screen. From the app’s home screen, check for **Aperçu du brouillon**, choose the target year and open the draft by title. Read the example, tap **Jouer** and play every question. Try a wrong answer and retry. Check the feedback against the key. Finish the round, replay and return to the catalogue.
+Ask the agent to open **AppForKids · Aperçu** on the emulator and leave the draft at its instructions screen. From the app’s home screen, check for **Aperçu du brouillon**, choose the target year and open the draft by title. Check the displayed subject and topics with the [classification contract](classification-contract.md). Read the example, tap **Jouer** and play every question. Try a wrong answer and retry. Check the feedback against the key. Finish the round, replay and return to the catalogue.
 
 For your own worksheet, set `family_draft` to the path of the private JSON the agent saved. The agent can build and open the preview with these commands. After a correction, set `family_draft` to the revised file and rerun the preview command without `--build`.
 

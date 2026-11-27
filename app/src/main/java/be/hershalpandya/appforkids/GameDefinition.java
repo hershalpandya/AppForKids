@@ -1,6 +1,7 @@
 package be.hershalpandya.appforkids;
 
 import android.content.res.AssetManager;
+import android.text.TextUtils;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -13,6 +14,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 final class GameDefinition {
     enum Type { TAP_TO_CHOOSE, MATCHING }
@@ -21,6 +24,8 @@ final class GameDefinition {
     final String id;
     final int revision;
     final String year;
+    final String classificationLabel;
+    final List<Classification> classifications;
     final String title;
     final String objective;
     final String instructions;
@@ -34,18 +39,22 @@ final class GameDefinition {
         List<GameDefinition> games = new ArrayList<>();
         for (int i = 0; i < entries.length(); i++) {
             try (InputStream input = assets.open("games/" + entries.getString(i))) {
-                games.add(load(input));
+                games.add(load(input, assets));
             }
         }
         return games;
     }
 
-    private GameDefinition(JSONObject data) throws JSONException {
+    private GameDefinition(JSONObject data, JSONObject vocabulary) throws JSONException {
         id = data.getString("id");
         revision = data.getInt("revision");
-        if (data.getInt("schemaVersion") != 1 || revision < 1) {
+        int schemaVersion = data.getInt("schemaVersion");
+        if ((schemaVersion != 1 && schemaVersion != 2) || revision < 1) {
             throw new JSONException("Unsupported definition for " + id);
         }
+        List<Classification> resolved = new ArrayList<>();
+        classificationLabel = classification(data, vocabulary, schemaVersion, id, revision, resolved);
+        classifications = Collections.unmodifiableList(resolved);
         year = data.getString("year");
         if (!year.equals("P1") && !year.equals("P3")) {
             throw new JSONException("Unsupported year for " + id);
@@ -96,6 +105,16 @@ final class GameDefinition {
         return pairs;
     }
 
+    static final class Classification {
+        final String subject;
+        final List<String> topics;
+
+        Classification(String subject, List<String> topics) {
+            this.subject = subject;
+            this.topics = Collections.unmodifiableList(topics);
+        }
+    }
+
     static final class Pair {
         final String left;
         final String right;
@@ -139,8 +158,53 @@ final class GameDefinition {
         return values;
     }
 
-    static GameDefinition load(InputStream input) throws IOException, JSONException {
-        return new GameDefinition(readJson(input));
+    static GameDefinition load(InputStream input, AssetManager assets) throws IOException, JSONException {
+        try (InputStream vocabulary = assets.open("classification-v1.json")) {
+            return new GameDefinition(readJson(input), readJson(vocabulary));
+        }
+    }
+
+    private static String classification(JSONObject data, JSONObject vocabulary, int schema,
+                                         String id, int revision, List<Classification> resolved) throws JSONException {
+        JSONArray entries;
+        if (schema == 1) {
+            entries = vocabulary.getJSONObject("legacy").optJSONArray(id + "@" + revision);
+            if (entries == null) return "À classer";
+        } else {
+            if (data.getInt("vocabularyVersion") != 1) {
+                throw new JSONException("Unsupported vocabularyVersion");
+            }
+            entries = data.getJSONArray("classification");
+            if (entries.length() == 0) throw new JSONException("Classification needs a subject");
+        }
+        JSONObject subjects = vocabulary.getJSONObject("subjects");
+        Set<String> seenSubjects = new HashSet<>();
+        List<String> labels = new ArrayList<>();
+        for (int i = 0; i < entries.length(); i++) {
+            JSONObject entry = entries.getJSONObject(i);
+            String subject = entry.getString("subject");
+            if (!seenSubjects.add(subject) || !subjects.has(subject)) {
+                throw new JSONException("Duplicate or unknown subject: " + subject);
+            }
+            JSONObject definition = subjects.getJSONObject(subject);
+            JSONObject knownTopics = definition.getJSONObject("topics");
+            JSONArray topics = entry.getJSONArray("topics");
+            if (topics.length() == 0) throw new JSONException("Subject needs a topic: " + subject);
+            Set<String> seenTopics = new HashSet<>();
+            List<String> topicLabels = new ArrayList<>();
+            List<String> topicIds = new ArrayList<>();
+            for (int j = 0; j < topics.length(); j++) {
+                String topic = topics.getString(j);
+                if (!seenTopics.add(topic) || !knownTopics.has(topic)) {
+                    throw new JSONException("Duplicate or unknown topic: " + topic);
+                }
+                topicIds.add(topic);
+                topicLabels.add(knownTopics.getString(topic));
+            }
+            resolved.add(new Classification(subject, topicIds));
+            labels.add(definition.getString("label") + " → " + TextUtils.join(", ", topicLabels));
+        }
+        return TextUtils.join("; ", labels);
     }
 
     private static JSONObject readJson(AssetManager assets, String file) throws IOException, JSONException {

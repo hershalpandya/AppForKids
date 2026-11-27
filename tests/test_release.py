@@ -41,6 +41,65 @@ class ReleaseTest(unittest.TestCase):
         selectors = [argument for game in games for argument in ("--game", game)]
         return self.release("build", "--version-code", "2", "--output", self.output, *selectors, env=env)
 
+    def test_v2_multiple_subjects_are_validated_at_authoring_boundary(self):
+        self.game.update(schemaVersion=2, vocabularyVersion=1, classification=[
+            {"subject": "mathematics", "topics": ["counting"]},
+            {"subject": "french", "topics": ["synonyms"]},
+        ])
+        accepted = self.approve()
+        self.assertEqual(0, accepted.returncode, accepted.stderr)
+        self.assertIn("Mathématiques", accepted.stdout)
+        self.assertIn("Mots de même sens", accepted.stdout)
+
+    def test_v2_rejects_invalid_classification_with_actionable_errors(self):
+        self.game.update(schemaVersion=2, vocabularyVersion=1, classification=[
+            {"subject": "mathematics", "topics": ["counting"]},
+        ])
+        cases = [
+            ([], "at least one subject"),
+            ([{"subject": "mathematics", "topics": []}], "at least 1 entries"),
+            ([{"subject": "mathematics", "topics": ["counting", "counting"]}], "duplicate topic"),
+            ([{"subject": "french", "topics": ["counting"]}], "unknown or mismatched topic"),
+            ([{"subject": "unknown", "topics": ["counting"]}], "unknown subject"),
+            ([{"subject": "french", "topics": ["synonyms"]}] * 2, "duplicate subject"),
+        ]
+        for value, message in cases:
+            with self.subTest(value=value):
+                self.game["classification"] = value
+                result = self.approve()
+                self.assertNotEqual(0, result.returncode)
+                self.assertIn(message, result.stderr)
+
+    def test_legacy_and_new_approvals_package_without_changing_snapshots(self):
+        self.assertEqual(0, self.approve().returncode)
+        legacy = self.store / "les-jetons-a-reunir@2.json"
+        original = legacy.read_bytes()
+        self.game = json.loads(MATCHING_FIXTURE.read_text(encoding="utf-8"))
+        self.game.update(schemaVersion=2, vocabularyVersion=1, classification=[
+            {"subject": "french", "topics": ["synonyms"]},
+        ])
+        self.assertEqual(0, self.approve().returncode)
+        selection = self.workspace / "selection.json"
+        selection.write_text(json.dumps({"store": str(self.store), "games": [
+            "les-jetons-a-reunir@2", "les-mots-de-meme-sens@2"]}), encoding="utf-8")
+        assets = self.workspace / "assets"
+        result = subprocess.run([sys.executable, COMMAND, "package-catalogue", assets,
+                                 "--selection", selection], capture_output=True, text=True)
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(original, legacy.read_bytes())
+        self.assertEqual(self.game, json.loads((assets / "games/les-mots-de-meme-sens.json").read_text()))
+        self.assertTrue((assets / "classification-v1.json").exists())
+
+    def test_v1_classification_is_limited_to_reviewed_starter_revision(self):
+        self.draft.write_text(json.dumps(self.game), encoding="utf-8")
+        unknown = subprocess.run([sys.executable, COMMAND, "validate", self.draft], capture_output=True, text=True)
+        self.assertEqual(0, unknown.returncode, unknown.stderr)
+        self.assertIn("À classer", unknown.stdout)
+        starter = REPO / "app/src/main/assets/games/compter-les-etoiles.json"
+        known = subprocess.run([sys.executable, COMMAND, "validate", starter], capture_output=True, text=True)
+        self.assertEqual(0, known.returncode, known.stderr)
+        self.assertIn("Mathématiques → Compter", known.stdout)
+
     def test_a_changed_draft_needs_a_new_approval(self):
         approved = self.approve()
         self.assertEqual(0, approved.returncode, approved.stderr)
@@ -134,6 +193,7 @@ class ReleaseTest(unittest.TestCase):
         shutil.copyfile(COMMAND, self.command)
         games = self.workspace / "app/src/main/assets/games"
         shutil.copytree(REPO / "app/src/main/assets/games", games)
+        shutil.copyfile(REPO / "app/src/main/assets/classification-v1.json", games.parent / "classification-v1.json")
         shutil.copyfile(
             REPO / "app/starter-approvals.json", self.workspace / "app/starter-approvals.json"
         )
@@ -162,6 +222,16 @@ class ReleaseTest(unittest.TestCase):
         )
         self.assertNotEqual(0, invalid.returncode)
         self.assertIn(f"{selection}: store: expected nonempty text", invalid.stderr)
+
+    def test_editing_vocabulary_v1_stops_packaging(self):
+        self.isolated_starter()
+        vocabulary = self.workspace / "app/src/main/assets/classification-v1.json"
+        data = json.loads(vocabulary.read_text(encoding="utf-8"))
+        data["subjects"]["french"]["label"] = "Modifié"
+        vocabulary.write_text(json.dumps(data), encoding="utf-8")
+        result = self.build()
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("retain version 1", result.stderr)
 
     def test_editing_the_bundled_starter_requires_approval(self):
         starter = self.isolated_starter()
@@ -218,6 +288,7 @@ class ReleaseCatalogueTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             apk = Path(directory) / "candidate.apk"
             with ZipFile(apk, "w") as archive:
+                archive.writestr("assets/classification-v1.json", (REPO / "app/src/main/assets/classification-v1.json").read_bytes())
                 archive.writestr("assets/games/catalogue.json", json.dumps({"games": list(games)}))
                 for name, game in games.items():
                     archive.writestr(f"assets/games/{name}", json.dumps(game))

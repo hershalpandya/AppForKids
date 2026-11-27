@@ -157,7 +157,7 @@ public final class MainActivity extends Activity {
         }
 
         try (InputStream input = openFileInput(draft.getName())) {
-            GameDefinition candidate = GameDefinition.load(input);
+            GameDefinition candidate = GameDefinition.load(input, getAssets());
             for (int index = 0; index < games.size(); index++) {
                 if (games.get(index).id.equals(candidate.id)) {
                     games.set(index, candidate);
@@ -208,6 +208,7 @@ public final class MainActivity extends Activity {
                     if (entry.year.equals(year)) {
                         LinearLayout card = card(content, Color.WHITE);
                         body(card, entry.objective);
+                        body(card, entry.classificationLabel);
                         button(card, entry.title, 26, true, () -> {
                             game = entry;
                             round = null;

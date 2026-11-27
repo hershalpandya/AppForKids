@@ -15,7 +15,7 @@ from smoke_test import adb, airplane_mode_is_on, tap, visible, visible_matches
 PACKAGE = "be.hershalpandya.appforkids.preview"
 FIXTURES = Path(__file__).resolve().parents[1] / "tests/fixtures"
 P1_FIXTURE = FIXTURES / "les-jetons-a-reunir.json"
-P3_FIXTURE = FIXTURES / "les-mots-de-meme-sens-corrige.json"
+P3_FIXTURE = FIXTURES / "les-mots-classifies.json"
 
 
 def play_p1_worksheet():
@@ -26,6 +26,8 @@ def play_p1_worksheet():
     see("Aperçu du brouillon")
     touch("P1")
     see("Les étoiles à compter")
+    see("Mathématiques → Compter")
+    see("À classer")
     touch("Les jetons à réunir")
     see("Exemple : ● ● et ● font 3 jetons.")
     touch("Jouer")
@@ -60,6 +62,7 @@ def play_p3_worksheet():
     touch("P3")
     if len(visible_matches("Les mots de même sens", PACKAGE)) != 1:
         raise AssertionError("The matching draft must replace the bundled game in the preview")
+    see("Mathématiques → Compter; Français → Mots de même sens")
     touch("Les mots de même sens")
     touch("Jouer")
     touch("content")
@@ -100,7 +103,7 @@ def verify_release_isolation(apk):
         entries = archive.namelist()
         catalogue = "assets/games/catalogue.json"
         bundled_games = json.loads(archive.read(catalogue))["games"]
-        expected_assets = {catalogue, *(f"assets/games/{game}" for game in bundled_games)}
+        expected_assets = {"assets/classification-v1.json", catalogue, *(f"assets/games/{game}" for game in bundled_games)}
         actual_assets = {entry for entry in entries if entry.startswith("assets/")}
         if actual_assets != expected_assets or {P1_FIXTURE.name, P3_FIXTURE.name}.intersection(bundled_games):
             raise AssertionError(f"Unexpected release assets: {sorted(actual_assets)}")
