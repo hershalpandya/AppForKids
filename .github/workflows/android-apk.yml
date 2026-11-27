@@ -82,6 +82,14 @@ jobs:
             --version-code 2 --previous-apk "$baseline" --output build/ci/app-release-update.apk \
             2>&1 | tee build/ci/gradle-update.log
 
+      - name: Scan repository and build artifacts with Grype
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
+        with:
+          path: .
+          fail-build: true
+          output-format: table
+          severity-cutoff: medium
+
       - name: Enable KVM for the hosted runner
         run: |
           test -c /dev/kvm
