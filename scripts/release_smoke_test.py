@@ -28,7 +28,7 @@ def verify_catalogue(apk):
             raise AssertionError(f"Expected one entry per approved game {sorted(approved)}, got {entries}")
 
         assets = sorted(entry for entry in archive.namelist() if entry.startswith("assets/"))
-        expected_assets = sorted([catalogue, *(f"assets/games/{entry}" for entry in approved)])
+        expected_assets = sorted(["assets/classification-v1.json", catalogue, *(f"assets/games/{entry}" for entry in approved)])
         if assets != expected_assets:
             raise AssertionError(f"Expected APK assets {expected_assets}, got {assets}")
 
