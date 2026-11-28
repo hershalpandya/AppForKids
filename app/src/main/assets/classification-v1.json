@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "subjects": {
+    "mathematics": {"label": "Mathématiques", "topics": {"counting": "Compter"}},
+    "french": {"label": "Français", "topics": {"synonyms": "Mots de même sens"}}
+  },
+  "legacy": {
+    "compter-les-etoiles@1": [{"subject": "mathematics", "topics": ["counting"]}],
+    "les-mots-de-meme-sens@1": [{"subject": "french", "topics": ["synonyms"]}]
+  }
+}

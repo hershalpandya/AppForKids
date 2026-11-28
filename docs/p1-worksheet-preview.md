@@ -12,7 +12,7 @@ Review the page references and answer key, then play through the draft. A correc
 
 ## Open or replace the draft
 
-The agent builds and installs **AppForKids · Aperçu** on an Android emulator, opens the draft from **P1** and verifies it in the app. If the draft shares an ID with an existing game, the preview catalogue shows the draft in that game's place. After a correction, the agent checks the revised content in the app and leaves the game at its instructions screen. The parent can tap **Jouer** to review it.
+The agent builds and installs **Petits Pas · Aperçu** on an Android emulator, finds the draft in the all-games catalogue and verifies it in the app. If the draft shares an ID with an existing game, the preview catalogue shows the draft in that game's place. Check **Aperçu du brouillon**, the year and resolved subject/topics, and try applicable year, subject and topic filters, **Effacer les filtres**, and no-match recovery. Review the shared [visual source](proposed-visual-direction.md), including readable text and countable objects. Play wrong and correct answers, hints, completion and replay against the key. After a correction, the agent checks the revised content in the app and leaves the game at its instructions screen. The parent can tap **Jouer** to review it.
 
 ### Agent setup
 
@@ -26,11 +26,12 @@ With the preview APK already installed, omit `--build` to reload a corrected fil
 
 ## Write a game definition
 
-Use the [reviewed synthetic P1 fixture](../tests/fixtures/les-jetons-a-reunir.json) as a complete, runnable example. Save drafts as UTF-8 JSON.
+Use the [synthetic P1 fixture](../tests/fixtures/les-jetons-a-reunir.json) as a runnable schema 1 example. Save drafts as UTF-8 JSON. For new classified drafts use schema 2 and the [classification contract](classification-contract.md): select the year and every applicable reviewed subject and topic, raise uncertain or missing vocabulary for review, and show the resolved labels to the parent. The [classified fixture](../tests/fixtures/les-mots-classifies.json) demonstrates the metadata shape.
 
 | Field | Value |
 | --- | --- |
-| `schemaVersion` | Integer `1`. |
+| `schemaVersion` | Integer `2` for new classified drafts; existing schema 1 drafts remain supported. |
+| `vocabularyVersion`, `classification` | Version `1` and a nonempty list of reviewed subject/topic entries; see the [contract](classification-contract.md). |
 | `id` | Stable lowercase identifier with hyphens such as `les-jetons-a-reunir`. |
 | `revision` | Positive integer. Start at `1` and increase it after changes. |
 | `year`, `type` | `P1` and `tap-to-choose` for this workflow. |

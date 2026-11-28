@@ -1,12 +1,20 @@
 package be.hershalpandya.appforkids;
 
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.text.InputType;
+import android.widget.EditText;
+import org.json.JSONArray;
+import org.json.JSONObject;
+import java.util.Locale;
+import java.util.UUID;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.Insets;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.RippleDrawable;
+import android.graphics.drawable.StateListDrawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
@@ -16,6 +24,7 @@ import android.view.WindowInsets;
 import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
+import android.widget.ImageView;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
@@ -26,29 +35,50 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 public final class MainActivity extends Activity {
-    private static final int PAPER = 0xfff8f5ed;
-    private static final int INK = 0xff20283d;
-    private static final int BLUE = 0xff2257a5;
-    private static final int PALE_BLUE = 0xffe9f0ff;
-    private static final int PALE_YELLOW = 0xffffedb0;
-    private static final int STAR = 0xff7e4503;
+    private int paper, ink, primary, palePurple, paleGreen, starInk;
 
-    private enum Screen { HOME, CATALOGUE, INSTRUCTIONS, ROUND, COMPLETE }
+    private void loadDesignColors() {
+        paper = getColor(R.color.surface);
+        ink = getColor(R.color.text_primary);
+        primary = getColor(R.color.primary);
+        palePurple = getColor(R.color.primary_light);
+        paleGreen = getColor(R.color.instruction_surface);
+        starInk = getColor(R.color.star_ink);
+    }
+
+    private enum Screen { CHOOSER, HOME, CATALOGUE, INSTRUCTIONS, ROUND, COMPLETE }
 
     private List<GameDefinition> games;
     private String previewMessage;
-    private Screen screen = Screen.HOME;
+    private Screen screen = Screen.CATALOGUE;
     private String year;
+    private String subject;
+    private String topicSubject;
+    private String topic;
     private GameDefinition game;
     private GameRound round;
     private MatchingRound matchingRound;
     private ScrollView scroll;
+    private final List<Child> children = new ArrayList<>();
+    private Child selectedChild;
+    private boolean profilesDamaged;
+    private static final String PROFILES = "children";
+    private static final String RESULTS = "results";
+
+    private static final class Child {
+        final String id;
+        final String name;
+        Child(String id, String name) { this.id = id; this.name = name; }
+    }
 
     @Override
     protected void onCreate(Bundle savedState) {
         super.onCreate(savedState);
+        loadDesignColors();
         configureSystemBars();
         try {
             games = GameDefinition.loadCatalogue(getAssets());
@@ -59,29 +89,52 @@ public final class MainActivity extends Activity {
         }
 
         loadWorksheetPreview();
-
+        if (!BuildConfig.DEBUG) {
+            loadChildren();
+            screen = Screen.CHOOSER;
+        }
         if (savedState != null) {
-            restoreScreen(savedState);
+            if (BuildConfig.DEBUG) {
+                restoreScreen(savedState);
+            } else if (getLastNonConfigurationInstance() != null) {
+                String childId = savedState.getString("childId");
+                for (Child child : children) {
+                    if (child.id.equals(childId)) selectedChild = child;
+                }
+                if (!profilesDamaged && (selectedChild != null
+                        || Screen.CHOOSER.name().equals(savedState.getString("screen")))) {
+                    restoreScreen(savedState);
+                }
+            }
         }
         render();
     }
 
+    @Override
+    public Object onRetainNonConfigurationInstance() {
+        // A configuration change can resume the round, but a fresh process starts at the chooser.
+        return Boolean.TRUE;
+    }
+
     private void restoreScreen(Bundle state) {
-        screen = Screen.valueOf(state.getString("screen", Screen.HOME.name()));
+        screen = Screen.valueOf(state.getString("screen", Screen.CATALOGUE.name()));
         year = state.getString("year");
-        if (screen == Screen.HOME || screen == Screen.CATALOGUE) {
+        subject = state.getString("subject");
+        topicSubject = state.getString("topicSubject");
+        topic = state.getString("topic");
+        if (screen == Screen.CHOOSER || screen == Screen.HOME || screen == Screen.CATALOGUE) {
             return;
         }
 
         String gameId = state.getString("game");
         for (GameDefinition entry : games) {
-            if (entry.id.equals(gameId) && entry.year.equals(year)) {
+            if (entry.id.equals(gameId)) {
                 game = entry;
                 break;
             }
         }
         if (game == null) {
-            screen = year == null ? Screen.HOME : Screen.CATALOGUE;
+            screen = Screen.CATALOGUE;
             return;
         }
         if (screen == Screen.INSTRUCTIONS) {
@@ -118,7 +171,11 @@ public final class MainActivity extends Activity {
     protected void onSaveInstanceState(Bundle state) {
         super.onSaveInstanceState(state);
         state.putString("screen", screen.name());
+        if (selectedChild != null) state.putString("childId", selectedChild.id);
         state.putString("year", year);
+        state.putString("subject", subject);
+        state.putString("topicSubject", topicSubject);
+        state.putString("topic", topic);
         if (game != null) {
             state.putString("game", game.id);
             state.putInt("gameRevision", game.revision);
@@ -138,10 +195,12 @@ public final class MainActivity extends Activity {
     @Override
     @SuppressWarnings("deprecation")
     public void onBackPressed() {
-        if (screen == Screen.HOME) {
+        if (screen == Screen.CHOOSER || (BuildConfig.DEBUG && screen == Screen.CATALOGUE)) {
             super.onBackPressed();
+        } else if (screen == Screen.HOME || screen == Screen.CATALOGUE) {
+            changeChild();
         } else {
-            show(screen == Screen.CATALOGUE ? Screen.HOME : Screen.CATALOGUE);
+            show(Screen.CATALOGUE);
         }
     }
 
@@ -157,7 +216,7 @@ public final class MainActivity extends Activity {
         }
 
         try (InputStream input = openFileInput(draft.getName())) {
-            GameDefinition candidate = GameDefinition.load(input);
+            GameDefinition candidate = GameDefinition.load(input, getAssets());
             for (int index = 0; index < games.size(); index++) {
                 if (games.get(index).id.equals(candidate.id)) {
                     games.set(index, candidate);
@@ -176,8 +235,8 @@ public final class MainActivity extends Activity {
             getWindow().setStatusBarColor(Color.TRANSPARENT);
             getWindow().setNavigationBarColor(Color.TRANSPARENT);
         } else {
-            getWindow().setStatusBarColor(PAPER);
-            getWindow().setNavigationBarColor(Build.VERSION.SDK_INT >= 27 ? PAPER : INK);
+            getWindow().setStatusBarColor(paper);
+            getWindow().setNavigationBarColor(Build.VERSION.SDK_INT >= 27 ? paper : ink);
         }
     }
 
@@ -192,22 +251,51 @@ public final class MainActivity extends Activity {
 
     private void render(boolean announceFeedback) {
         LinearLayout content = page();
+        if (!BuildConfig.DEBUG && selectedChild != null && screen != Screen.CHOOSER) {
+            body(content, "Pour " + selectedChild.name);
+            button(content, "Changer d’enfant", 20, false, this::changeChild);
+        }
         switch (screen) {
-            case HOME:
-                if (BuildConfig.DEBUG) {
-                    body(content, previewMessage);
+            case CHOOSER:
+                heading(content, "Qui va jouer ?", 42);
+                body(content, "Les profils restent sur cet appareil. Effacer les données ou désinstaller l’application les supprime. Les sauvegardes et transferts dépendent de l’appareil.");
+                if (profilesDamaged) {
+                    body(content, "Impossible de lire les profils. Ferme et rouvre l’application. Les données n’ont pas été remplacées.");
+                    button(content, "Effacer les profils endommagés", 20, false, () -> parentCheck(() ->
+                            new AlertDialog.Builder(this).setTitle("Effacer tous les profils ?")
+                            .setMessage("Tous les profils et leur progression locale seront perdus.")
+                            .setNegativeButton("Annuler", null).setPositiveButton("Effacer", (d, w) -> {
+                                if (saveChildren(new ArrayList<>(), new JSONObject())) { profilesDamaged = false; render(); }
+                            }).show()));
+                    break;
                 }
-                heading(content, "À toi de jouer !", 42);
-                body(content, "Choisis ton année");
-                yearButton(content, "P1");
-                yearButton(content, "P3");
+                if (readResults() == null) recoveryButton(content);
+                if (children.isEmpty()) body(content, "Demande à un parent d’ajouter un enfant.");
+                for (Child child : children) {
+                    button(content, child.name, 30, true, () -> { selectedChild = child; show(Screen.CATALOGUE); });
+                    button(content, "Supprimer " + child.name, 18, false,
+                            () -> parentCheck(() -> confirmDeletion(child)));
+                }
+                button(content, "Ajouter un enfant", 24, false, () -> parentCheck(this::addChild));
                 break;
+            case HOME:
+
             case CATALOGUE:
-                heading(content, year + " · Les jeux", 38);
+                heading(content, "Les jeux", 38);
+                if (selectedChild != null) {
+                    if (readResults() == null) recoveryButton(content);
+                    button(content, "Réinitialiser les résultats", 20, false, () -> parentCheck(this::confirmReset));
+                }
+                renderFilters(content);
+                int count = 0;
                 for (GameDefinition entry : games) {
-                    if (entry.year.equals(year)) {
+                    if (matchesFilters(entry)) {
+                        count++;
                         LinearLayout card = card(content, Color.WHITE);
+                        body(card, entry.year);
                         body(card, entry.objective);
+                        body(card, entry.classificationLabel);
+                        showResult(card, entry);
                         button(card, entry.title, 26, true, () -> {
                             game = entry;
                             round = null;
@@ -216,11 +304,11 @@ public final class MainActivity extends Activity {
                         });
                     }
                 }
-                button(content, "Changer d’année", 20, false, () -> show(Screen.HOME));
+                if (count == 0) body(content, "Aucun jeu pour ce choix.");
                 break;
             case INSTRUCTIONS:
                 heading(content, game.title, 38);
-                LinearLayout example = card(content, PALE_YELLOW);
+                LinearLayout example = card(content, paleGreen);
                 body(example, game.instructions);
                 heading(example, game.workedExample, 28);
                 button(content, "Jouer", 26, true, this::startRound);
@@ -242,10 +330,352 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private void yearButton(LinearLayout content, String selectedYear) {
-        button(content, selectedYear, 32, true, () -> {
-            year = selectedYear;
-            show(Screen.CATALOGUE);
+    private void changeChild() {
+        selectedChild = null;
+        game = null;
+        round = null;
+        matchingRound = null;
+        show(Screen.CHOOSER);
+    }
+
+    private void loadChildren() {
+        try {
+            String data = getPreferences(MODE_PRIVATE).getString(PROFILES, "[]");
+            JSONArray list = new JSONArray(data);
+            for (int i = 0; i < list.length(); i++) {
+                JSONObject item = list.getJSONObject(i);
+                String id = item.getString("id");
+                String name = item.getString("name");
+                if (id.isEmpty() || name.isEmpty()) throw new JSONException("Invalid profile");
+                for (Child existing : children) {
+                    if (existing.id.equals(id) || sameChildName(existing.name, name))
+                        throw new JSONException("Duplicate profile");
+                }
+                children.add(new Child(id, name));
+            }
+        } catch (JSONException | ClassCastException error) {
+            children.clear();
+            profilesDamaged = true;
+        }
+    }
+
+    private boolean saveChildren(List<Child> updated) {
+        return saveChildren(updated, null);
+    }
+
+    private boolean saveChildren(List<Child> updated, JSONObject results) {
+        JSONArray list = new JSONArray();
+        try {
+            for (Child child : updated) {
+                JSONObject item = new JSONObject();
+                item.put("id", child.id);
+                item.put("name", child.name);
+                list.put(item);
+            }
+        } catch (JSONException error) { return false; }
+        android.content.SharedPreferences.Editor editor = getPreferences(MODE_PRIVATE).edit().putString(PROFILES, list.toString());
+        if (results != null) editor.putString(RESULTS, results.toString());
+        if (!editor.commit()) return false;
+        children.clear();
+        children.addAll(updated);
+        return true;
+    }
+
+    private LinearLayout dialogInput(EditText input, TextView error) {
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(24), 0, dp(24), 0);
+        content.addView(input, new LinearLayout.LayoutParams(-1, -2));
+        error.setVisibility(View.GONE);
+        input.addTextChangedListener(new android.text.TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence text, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence text, int start, int before, int count) {
+                error.setVisibility(View.GONE);
+            }
+            @Override public void afterTextChanged(android.text.Editable text) { }
+        });
+        content.addView(error, new LinearLayout.LayoutParams(-1, -2));
+        return content;
+    }
+
+    private void showDialogError(TextView error, String message) {
+        error.setText(message);
+        error.setVisibility(View.VISIBLE);
+        error.announceForAccessibility(message);
+    }
+
+    private void parentCheck(Runnable passed) {
+        EditText answer = new EditText(this);
+        answer.setInputType(InputType.TYPE_CLASS_NUMBER);
+        TextView error = text("", 18, ink);
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Vérification pour les parents")
+                .setMessage("Combien font 7 + 5 ?").setView(dialogInput(answer, error))
+                .setNegativeButton("Annuler", null).setPositiveButton("Vérifier", null).create();
+        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            if (!answer.getText().toString().equals("12")) {
+                showDialogError(error, "Essaie encore.");
+                return;
+            }
+            dialog.dismiss();
+            passed.run();
+        }));
+        dialog.show();
+    }
+
+    private boolean sameChildName(String first, String second) {
+        return first.toLowerCase(Locale.ROOT).equals(second.toLowerCase(Locale.ROOT));
+    }
+
+    private boolean containsControl(String value) {
+        for (int i = 0; i < value.length(); i++) {
+            if (Character.isISOControl(value.charAt(i))) return true;
+        }
+        return false;
+    }
+
+    private void addChild() {
+        EditText name = new EditText(this);
+        name.setSingleLine(true);
+        name.setHint("Prénom ou surnom");
+        TextView error = text("", 18, ink);
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Ajouter un enfant")
+                .setMessage("Un prénom ou surnom suffit.").setView(dialogInput(name, error))
+                .setNegativeButton("Annuler", null).setPositiveButton("Ajouter", null).create();
+        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            String value = name.getText().toString().trim();
+            if (value.isEmpty() || value.length() > 40 || containsControl(value)) {
+                showDialogError(error, "Saisis un nom de 1 à 40 caractères, sans caractères de contrôle.");
+                return;
+            }
+            for (Child child : children) {
+                if (sameChildName(child.name, value)) {
+                    showDialogError(error, "Ce nom existe déjà. Choisis un autre surnom.");
+                    return;
+                }
+            }
+            List<Child> updated = new ArrayList<>(children);
+            updated.add(new Child(UUID.randomUUID().toString(), value));
+            if (!saveChildren(updated)) { showDialogError(error, "Enregistrement impossible. Réessaie."); return; }
+            dialog.dismiss();
+            render();
+        }));
+        dialog.show();
+    }
+
+    private void confirmDeletion(Child child) {
+        new AlertDialog.Builder(this).setTitle("Supprimer " + child.name + " ?")
+                .setMessage("Son profil et sa progression locale seront supprimés de cet appareil. Les autres enfants et les jeux restent disponibles.")
+                .setNegativeButton("Annuler", null).setPositiveButton("Supprimer", (dialog, which) -> {
+                    List<Child> updated = new ArrayList<>(children);
+                    updated.remove(child);
+                    JSONObject results = readResults();
+                    if (results == null) {
+                        new AlertDialog.Builder(this).setMessage("Impossible de lire les résultats. Réessaie.").setPositiveButton("OK", null).show();
+                        return;
+                    }
+                    results.remove(child.id);
+                    if (!saveChildren(updated, results)) {
+                        new AlertDialog.Builder(this).setMessage("Suppression impossible. Réessaie.").setPositiveButton("OK", null).show();
+                        return;
+                    }
+                    render();
+                }).show();
+    }
+
+    // Results are keyed by opaque profile and game IDs; a result is never written during play.
+    private boolean validGameResult(JSONObject result) {
+        if (result == null) return false;
+        try {
+            return result.getInt("revision") >= 1 && result.getInt("count") >= 1;
+        } catch (JSONException error) { return false; }
+    }
+
+    private boolean validChildResults(JSONObject games) {
+        java.util.Iterator<String> ids = games.keys();
+        while (ids.hasNext()) {
+            if (!validGameResult(games.optJSONObject(ids.next()))) return false;
+        }
+        return true;
+    }
+
+    private JSONObject readResults() {
+        try {
+            JSONObject results = new JSONObject(getPreferences(MODE_PRIVATE).getString(RESULTS, "{}"));
+            java.util.Iterator<String> ids = results.keys();
+            while (ids.hasNext()) {
+                JSONObject games = results.optJSONObject(ids.next());
+                if (games == null || !validChildResults(games)) return null;
+            }
+            return results;
+        } catch (JSONException | ClassCastException error) { return null; }
+    }
+
+    private void recoveryButton(LinearLayout content) {
+        button(content, "Réparer les résultats endommagés", 20, false,
+                () -> parentCheck(this::confirmResultsRecovery));
+    }
+
+    private void confirmResultsRecovery() {
+        JSONObject recovered = new JSONObject();
+        boolean unreadable = false;
+        try {
+            JSONObject stored = new JSONObject(getPreferences(MODE_PRIVATE).getString(RESULTS, "{}"));
+            java.util.Iterator<String> ids = stored.keys();
+            while (ids.hasNext()) {
+                String id = ids.next();
+                JSONObject games = stored.optJSONObject(id);
+                if (games == null) continue;
+                JSONObject validGames = new JSONObject();
+                java.util.Iterator<String> gameIds = games.keys();
+                while (gameIds.hasNext()) {
+                    String gameId = gameIds.next();
+                    JSONObject result = games.optJSONObject(gameId);
+                    if (validGameResult(result)) validGames.put(gameId, result);
+                }
+                recovered.put(id, validGames);
+            }
+        } catch (JSONException | ClassCastException error) {
+            unreadable = true;
+            recovered = new JSONObject();
+        }
+        String message = unreadable ? "Tous les résultats enregistrés seront perdus."
+                : "Les résultats endommagés seront perdus. Les résultats lisibles seront conservés, y compris ceux du même enfant.";
+        JSONObject resultsToSave = recovered;
+        new AlertDialog.Builder(this).setTitle("Réparer les résultats ?").setMessage(message)
+                .setNegativeButton("Annuler", null).setPositiveButton("Réparer", (dialog, which) -> {
+                    if (getPreferences(MODE_PRIVATE).edit().putString(RESULTS, resultsToSave.toString()).commit()) {
+                        render();
+                    } else {
+                        new AlertDialog.Builder(this).setMessage("Réparation impossible. Réessaie.")
+                                .setPositiveButton("OK", null).show();
+                    }
+                }).show();
+    }
+
+    private void showResult(LinearLayout card, GameDefinition entry) {
+        if (selectedChild == null) return; // Worksheet preview has no profile or progress.
+        JSONObject results = readResults();
+        if (results == null) {
+            body(card, "Impossible de lire les résultats enregistrés.");
+            return;
+        }
+        JSONObject child = results.optJSONObject(selectedChild.id);
+        JSONObject result = child == null ? null : child.optJSONObject(entry.id);
+        if (result != null) {
+            body(card, result.optInt("revision") == entry.revision
+                    ? "★ Jeu terminé" : "★ Ancienne version terminée");
+        }
+    }
+
+    private void finishRound() {
+        if (selectedChild == null) { show(Screen.COMPLETE); return; }
+        JSONObject results = readResults();
+        if (results != null) {
+            try {
+                JSONObject child = results.optJSONObject(selectedChild.id);
+                if (child == null) { child = new JSONObject(); results.put(selectedChild.id, child); }
+                JSONObject old = child.optJSONObject(game.id);
+                int count = game.type == GameDefinition.Type.MATCHING ? matchingRound.matchedCount() : round.questionCount();
+                if (old == null || old.getInt("revision") != game.revision || count > old.getInt("count")) {
+                    JSONObject result = new JSONObject();
+                    result.put("revision", game.revision);
+                    result.put("count", count);
+                    child.put(game.id, result);
+                }
+                if (getPreferences(MODE_PRIVATE).edit().putString(RESULTS, results.toString()).commit()) {
+                    show(Screen.COMPLETE);
+                    return;
+                }
+            } catch (JSONException ignored) { }
+        }
+        new AlertDialog.Builder(this).setMessage("Impossible d’enregistrer le résultat. Retourne au catalogue pour réparer les résultats avec un parent.")
+                .setPositiveButton("OK", null).show();
+    }
+
+    private void confirmReset() {
+        Child child = selectedChild;
+        new AlertDialog.Builder(this).setTitle("Réinitialiser les résultats de " + child.name + " ?")
+                .setMessage("Tous ses résultats enregistrés seront effacés. Les autres enfants et les jeux restent disponibles.")
+                .setNegativeButton("Annuler", null).setPositiveButton("Réinitialiser", (dialog, which) -> {
+                    JSONObject results = readResults();
+                    if (results != null) {
+                        results.remove(child.id);
+                        if (getPreferences(MODE_PRIVATE).edit().putString(RESULTS, results.toString()).commit()) {
+                            render();
+                            return;
+                        }
+                    }
+                    new AlertDialog.Builder(this).setMessage("Réinitialisation impossible. Réessaie.")
+                            .setPositiveButton("OK", null).show();
+                }).show();
+    }
+
+    private boolean matchesFilters(GameDefinition entry) {
+        if (year != null && !year.equals(entry.year)) return false;
+        boolean subjectMatch = subject == null;
+        boolean topicMatch = topic == null;
+        for (GameDefinition.Classification classification : entry.classifications) {
+            if (classification.subject.equals(subject)) subjectMatch = true;
+            if (classification.subject.equals(topicSubject) && classification.topics.contains(topic)) {
+                topicMatch = true;
+            }
+        }
+        return subjectMatch && topicMatch;
+    }
+
+    private void renderFilters(LinearLayout content) {
+        Map<String, String> subjects = new LinkedHashMap<>();
+        Map<String, String> topics = new LinkedHashMap<>();
+        for (GameDefinition entry : games) {
+            for (GameDefinition.Classification item : entry.classifications) {
+                subjects.put(item.subject, item.subjectLabel);
+                for (int i = 0; i < item.topics.size(); i++) {
+                    topics.put(item.subject + "\n" + item.topics.get(i), item.topicLabels.get(i));
+                }
+            }
+        }
+        button(content, "Année : " + (year == null ? "Toutes" : year), 20, false, () -> {
+            String[] options = {"Toutes les années", "P1", "P3"};
+            new AlertDialog.Builder(this).setTitle("Année").setItems(options, (dialog, index) -> {
+                year = index == 0 ? null : options[index];
+                render();
+            }).show();
+        });
+        button(content, "Matière : " + (subject == null ? "Toutes" : subjects.get(subject)), 20, false, () -> {
+            List<String> keys = new ArrayList<>(subjects.keySet());
+            List<String> labels = new ArrayList<>();
+            labels.add("Toutes les matières");
+            labels.addAll(subjects.values());
+            new AlertDialog.Builder(this).setTitle("Matière").setItems(labels.toArray(new String[0]), (dialog, index) -> {
+                subject = index == 0 ? null : keys.get(index - 1);
+                render();
+            }).show();
+        });
+        String topicKey = topicSubject + "\n" + topic;
+        button(content, "Sujet : " + (topic == null ? "Tous" : topics.get(topicKey)), 20, false, () -> {
+            List<String> keys = new ArrayList<>(topics.keySet());
+            List<String> labels = new ArrayList<>();
+            labels.add("Tous les sujets");
+            labels.addAll(topics.values());
+            new AlertDialog.Builder(this).setTitle("Sujet").setItems(labels.toArray(new String[0]), (dialog, index) -> {
+                if (index == 0) {
+                    topicSubject = null;
+                    topic = null;
+                } else {
+                    String[] parts = keys.get(index - 1).split("\n", 2);
+                    topicSubject = parts[0];
+                    topic = parts[1];
+                }
+                render();
+            }).show();
+        });
+        button(content, "Effacer les filtres", 20, false, () -> {
+            year = null;
+            subject = null;
+            topicSubject = null;
+            topic = null;
+            render();
+
         });
     }
 
@@ -263,9 +693,9 @@ public final class MainActivity extends Activity {
         body(content, getString(R.string.question_progress,
                 round.questionIndex() + 1, round.questionCount()));
         heading(content, question.prompt, 34);
-        LinearLayout visual = card(content, PALE_YELLOW);
+        LinearLayout visual = card(content, paleGreen);
         for (String row : question.visualRows) {
-            TextView symbols = text(row, 38, STAR);
+            TextView symbols = text(row, 38, starInk);
             symbols.setGravity(Gravity.CENTER);
             visual.addView(symbols);
         }
@@ -290,7 +720,7 @@ public final class MainActivity extends Activity {
         renderFeedback(content, round.feedbackMessage(), announceFeedback);
         if (round.isAnswered()) {
             button(content, round.isLastQuestion() ? "Terminer" : "Suivant", 26, true,
-                    () -> show(round.advanceToNextQuestion() ? Screen.ROUND : Screen.COMPLETE));
+                    () -> { if (round.advanceToNextQuestion()) show(Screen.ROUND); else finishRound(); });
         }
         catalogueButton(content);
     }
@@ -328,9 +758,9 @@ public final class MainActivity extends Activity {
                         () -> match(rightIndex));
                 add(right, rightTiles[rightIndex], 8);
             }
-            feedbackCard = card(content, PALE_BLUE);
+            feedbackCard = card(content, palePurple);
             feedback = body(feedbackCard, "");
-            finish = makeButton("Terminer", 26, true, () -> show(Screen.COMPLETE));
+            finish = makeButton("Terminer", 26, true, MainActivity.this::finishRound);
             add(content, finish, 12);
             catalogueButton(content);
             refresh();
@@ -412,7 +842,7 @@ public final class MainActivity extends Activity {
 
     private void renderFeedback(LinearLayout content, String message, boolean announceFeedback) {
         if (message != null) {
-            body(card(content, PALE_BLUE), message);
+            body(card(content, palePurple), message);
             if (announceFeedback) {
                 scroll.announceForAccessibility(message);
             }
@@ -425,7 +855,7 @@ public final class MainActivity extends Activity {
 
     private LinearLayout page() {
         scroll = new ScrollView(this);
-        scroll.setBackgroundColor(PAPER);
+        scroll.setBackgroundColor(paper);
         scroll.setFillViewport(true);
         if (Build.VERSION.SDK_INT >= 30) {
             scroll.setOnApplyWindowInsetsListener((view, insets) -> {
@@ -444,6 +874,17 @@ public final class MainActivity extends Activity {
         int width = Math.min(getResources().getConfiguration().screenWidthDp, 720);
         frame.addView(content, new FrameLayout.LayoutParams(dp(width), -2, Gravity.CENTER_HORIZONTAL));
         setContentView(scroll);
+        ImageView landscape = new ImageView(this);
+        landscape.setImageResource(R.drawable.petits_pas_landscape);
+        landscape.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        landscape.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        content.addView(landscape, new LinearLayout.LayoutParams(-1, dp(56)));
+        TextView identity = text(getString(R.string.app_name), 20, primary);
+        identity.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        add(content, identity, 4);
+        if (BuildConfig.DEBUG) {
+            body(content, previewMessage);
+        }
         return content;
     }
 
@@ -457,7 +898,7 @@ public final class MainActivity extends Activity {
     }
 
     private void heading(LinearLayout parent, String label, int size) {
-        TextView heading = text(label, size, INK);
+        TextView heading = text(label, size, ink);
         heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         if (Build.VERSION.SDK_INT >= 28) {
             heading.setAccessibilityHeading(true);
@@ -466,7 +907,7 @@ public final class MainActivity extends Activity {
     }
 
     private TextView body(LinearLayout parent, String label) {
-        TextView body = text(label, 22, INK);
+        TextView body = text(label, 22, ink);
         add(parent, body, 4);
         return body;
     }
@@ -496,10 +937,19 @@ public final class MainActivity extends Activity {
     }
 
     private void styleButton(Button button, boolean main) {
-        button.setTextColor(main ? Color.WHITE : BLUE);
-        int ripple = main ? 0x55ffffff : 0x332257a5;
-        button.setBackground(new RippleDrawable(
-                ColorStateList.valueOf(ripple), rounded(main ? BLUE : PALE_BLUE, 18), null));
+        button.setTextColor(new ColorStateList(
+                new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}},
+                new int[]{ink, main ? Color.WHITE : primary}));
+        int ripple = main ? 0x55ffffff : 0x335630a5;
+        StateListDrawable states = new StateListDrawable();
+        GradientDrawable disabled = rounded(0xffe2e5eb, 18);
+        disabled.setStroke(dp(2), 0xff737c8f);
+        states.addState(new int[]{-android.R.attr.state_enabled}, disabled);
+        GradientDrawable focused = rounded(main ? primary : palePurple, 18);
+        focused.setStroke(dp(3), main ? Color.WHITE : primary);
+        states.addState(new int[]{android.R.attr.state_focused}, focused);
+        states.addState(new int[]{}, rounded(main ? primary : palePurple, 18));
+        button.setBackground(new RippleDrawable(ColorStateList.valueOf(ripple), states, null));
     }
 
     private GradientDrawable rounded(int color, int radius) {

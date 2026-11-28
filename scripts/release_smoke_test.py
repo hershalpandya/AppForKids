@@ -28,7 +28,7 @@ def verify_catalogue(apk):
             raise AssertionError(f"Expected one entry per approved game {sorted(approved)}, got {entries}")
 
         assets = sorted(entry for entry in archive.namelist() if entry.startswith("assets/"))
-        expected_assets = sorted([catalogue, *(f"assets/games/{entry}" for entry in approved)])
+        expected_assets = sorted(["assets/classification-v1.json", catalogue, *(f"assets/games/{entry}" for entry in approved)])
         if assets != expected_assets:
             raise AssertionError(f"Expected APK assets {expected_assets}, got {assets}")
 
@@ -61,15 +61,29 @@ def verify_installed_update(apk):
     if "Status: ok" not in launched.stdout:
         raise AssertionError(launched.stdout + launched.stderr)
 
+    tap("Alice")
+    tap("Année : Toutes")
     tap("P1")
     if len(visible_matches("Les étoiles à compter (corrigé)")) != 1:
         raise AssertionError("The corrected stars game must appear once in the P1 catalogue")
+    visible("★ Ancienne version terminée")
     tap("Les étoiles à compter (corrigé)")
     visible("Exemple corrigé : ★ ★ = 2")
     tap("Jouer")
     tap("4")
     visible("Bravo, il y a 4 étoiles !")
     tap("Retour au catalogue")
+    visible("★ Ancienne version terminée")
+    tap("Les étoiles à compter (corrigé)")
+    tap("Jouer")
+    tap("4")
+    tap("Suivant")
+    tap("6")
+    tap("Suivant")
+    tap("8")
+    tap("Terminer")
+    tap("Retour au catalogue")
+    visible("★ Jeu terminé", absent=("★ Ancienne version terminée",))
 
     tap("Les jetons à réunir")
     tap("Jouer")
@@ -78,7 +92,7 @@ def verify_installed_update(apk):
     visible("Bravo, 3 et 2 font 5 jetons !")
     tap("Retour au catalogue")
     visible("Les étoiles à compter (corrigé)")
-    tap("Changer d’année")
+    tap("Année : P1")
     tap("P3")
     if len(visible_matches("Les mots de même sens")) != 1:
         raise AssertionError("The corrected synonyms game must appear once in the P3 catalogue")
