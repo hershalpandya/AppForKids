@@ -19,7 +19,7 @@ def adb(*arguments, check=True):
     )
 
 
-def visible_matches(text, package=PACKAGE, *, absent=(), rotation=None):
+def visible_matches(text, package=PACKAGE, *, absent=(), rotation=None, scroll_up_first=False):
     deadline = time.monotonic() + 20
     last_labels = []
     attempts = 0
@@ -69,7 +69,8 @@ def visible_matches(text, package=PACKAGE, *, absent=(), rotation=None):
         if scrollable is not None:
             left, top, right, bottom = map(int, re.findall(r"\d+", scrollable.attrib["bounds"]))
             height = bottom - top
-            start, end = ((top + 3 * height // 4, top + height // 4) if attempts % 8 < 4
+            scroll_down = (attempts % 8 < 4) != scroll_up_first
+            start, end = ((top + 3 * height // 4, top + height // 4) if scroll_down
                           else (top + height // 4, top + 3 * height // 4))
             adb("shell", "input", "swipe", str((left + right) // 2), str(start),
                 str((left + right) // 2), str(end), "300")
@@ -78,8 +79,10 @@ def visible_matches(text, package=PACKAGE, *, absent=(), rotation=None):
     raise AssertionError(f"Expected visible text {text!r}. Last app labels: {last_labels!r}")
 
 
-def visible(text, package=PACKAGE, *, absent=(), rotation=None):
-    return visible_matches(text, package, absent=absent, rotation=rotation)[0]
+def visible(text, package=PACKAGE, *, absent=(), rotation=None, scroll_up_first=False):
+    return visible_matches(
+        text, package, absent=absent, rotation=rotation, scroll_up_first=scroll_up_first
+    )[0]
 
 
 def tap(text, package=PACKAGE):
@@ -247,6 +250,8 @@ def play_starter():
     tap("Terminer")
     tap("Retour au catalogue")
     visible("★ Jeu terminé")
+    # The badge may be below the fold; reveal the header before tapping switch.
+    visible("Pour Bob", scroll_up_first=True)
     tap("Changer d’enfant")
     tap("Alice")
     tap("Effacer les filtres")
