@@ -13,11 +13,43 @@ permissions:
   contents: read
 
 jobs:
+  quality:
+    name: Python and Gradle wrapper quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: gradle/actions/wrapper-validation@0723195856401067f7a2779048b490ace7a47d7c # v5
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Check Java formatting
+        run: bash scripts/format-java.sh --check
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.10"
+      - name: Install pinned Python quality tools
+        run: python -m pip install -r requirements-dev.txt
+      - name: Lint, format, type-check and test Python
+        run: |
+          python -m ruff check scripts tests
+          python -m ruff format --check scripts tests
+          python -m mypy
+          python -m coverage erase
+          python -m coverage run scripts/shuffled_tests.py --seed 11
+          python -m coverage combine
+          python -m coverage report
+          python -m coverage erase
+          python -m coverage run scripts/shuffled_tests.py --seed 29
+          python -m coverage combine
+          python -m coverage report
+
   grype:
     name: Grype vulnerability scan
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Scan repository with Grype
         uses: anchore/scan-action@11983a512817154c80a9db660c1a184be7513ed6 # v7.4.3
@@ -31,40 +63,17 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
-      ANDROID_TABLET_IMAGE: 'system-images;android-35;default;x86_64'
+      ANDROID_TABLET_IMAGE: "system-images;android-35;default;x86_64"
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-java@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
           cache: gradle
 
       - name: Install SDK and tablet system image
-        run: |
-          mkdir -p build/ci
-          export ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$RUNNER_TEMP/android-sdk}}"
-          export ANDROID_SDK_ROOT="$ANDROID_HOME"
-          tools_dir="$ANDROID_HOME/cmdline-tools/latest/bin"
-          if [[ ! -x "$tools_dir/sdkmanager" || ! -x "$tools_dir/avdmanager" ]]; then
-            archive="$RUNNER_TEMP/commandlinetools-linux-11076708_latest.zip"
-            curl --fail --silent --show-error --retry 3 --location \
-              --output "$archive" "https://dl.google.com/android/repository/${archive##*/}"
-            printf '%s  %s\n' \
-              '2d2d50857e4eb553af5a6dc3ad507a17adf43d115264b1afc116f95c92e5e258' "$archive" \
-              | sha256sum --check
-            unpack_dir="$(mktemp -d "$RUNNER_TEMP/android-tools.XXXXXX")"
-            unzip -q "$archive" -d "$unpack_dir"
-            mkdir -p "$ANDROID_HOME/cmdline-tools/latest"
-            cp -R "$unpack_dir/cmdline-tools/." "$ANDROID_HOME/cmdline-tools/latest/"
-            # sdkmanager closes its input once it finishes reading licence responses.
-            (set +o pipefail; yes | "$tools_dir/sdkmanager" --sdk_root="$ANDROID_HOME" --licenses)
-          fi
-          "$tools_dir/sdkmanager" --sdk_root="$ANDROID_HOME" --install \
-            "platforms;android-35" "build-tools;35.0.0" "platform-tools" "emulator" "$ANDROID_TABLET_IMAGE" \
-            2>&1 | tee build/ci/sdk-install.log
-          printf 'ANDROID_HOME=%s\nANDROID_SDK_ROOT=%s\n' "$ANDROID_HOME" "$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
-          printf '%s\n' "$tools_dir" >> "$GITHUB_PATH"
+        run: bash scripts/install-android-sdk.sh
 
       - name: Check approval and release validation
         run: python3 -m unittest discover -s tests -p test_release.py
@@ -78,7 +87,7 @@ jobs:
           keytool -genkeypair -keystore "$APPFORKIDS_KEYSTORE" -storetype PKCS12 \
             -storepass:env APPFORKIDS_STORE_PASSWORD -alias "$APPFORKIDS_KEY_ALIAS" \
             -keyalg RSA -keysize 2048 -validity 365 -dname 'CN=AppForKids CI'
-          ./gradlew --no-daemon :app:assembleRelease :app:lintRelease :app:assembleDebug 2>&1 | tee build/ci/gradle.log
+          ./gradlew --no-daemon :app:assembleRelease :app:lintRelease :app:assembleDebug :app:lintDebug 2>&1 | tee build/ci/gradle.log
           baseline=app/build/outputs/apk/release/app-release.apk
           approvals="$RUNNER_TEMP/appforkids-approvals"
           python3 scripts/release.py approve --store "$approvals" tests/fixtures/les-jetons-a-reunir.json
@@ -112,14 +121,14 @@ jobs:
             build/ci/app-release-update.apk
 
       - name: Upload tested starter APK
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: appforkids-ci-tested-apk
           path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
 
       - name: Upload tested update APK
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: appforkids-ci-tested-update-apk
           path: build/ci/app-release-update.apk
@@ -127,10 +136,58 @@ jobs:
 
       - name: Upload failure diagnostics
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: android-failure-diagnostics
           path: |
             build/ci/
             app/build/reports/lint-results-release.xml
+          if-no-files-found: warn
+
+  app-coverage:
+    name: Installed-app line coverage
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      ANDROID_TABLET_IMAGE: "system-images;android-35;default;x86_64"
+      APPFORKIDS_PACKAGE: be.hershalpandya.appforkids.coverage
+      APPFORKIDS_COVERAGE_DIR: build/ci/app-coverage
+      # A new suite order each run; the seed is logged so a failure can be replayed.
+      APPFORKIDS_SUITE_SEED: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Install SDK and tablet system image
+        run: bash scripts/install-android-sdk.sh
+
+      - name: Build the instrumented coverage APK
+        run: ./gradlew --no-daemon :app:assembleCoverage 2>&1 | tee build/ci/gradle-coverage.log
+
+      - name: Enable KVM for the hosted runner
+        run: |
+          test -c /dev/kvm
+          sudo chmod a+rw /dev/kvm
+          "$ANDROID_HOME/emulator/emulator" -accel-check
+
+      - name: Run installed-app suites in shuffled order
+        run: bash scripts/test-apk-on-emulator.sh app/build/outputs/apk/coverage/app-coverage.apk
+
+      - name: Require 70% line coverage
+        run: |
+          ./gradlew --no-daemon :app:appCoverageReport :app:appCoverageVerification \
+            -PappforkidsCoverageData="$APPFORKIDS_COVERAGE_DIR"
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: app-coverage-report
+          path: |
+            app/build/reports/jacoco/appCoverageReport/
+            build/ci/
           if-no-files-found: warn

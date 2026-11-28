@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise the installed starter APK through Android's visible controls."""
 
+import os
 import re
 import subprocess
 import sys
@@ -9,19 +10,43 @@ import traceback
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-PACKAGE = "be.hershalpandya.appforkids"
+import app_coverage
+
+# The coverage build type installs as be.hershalpandya.appforkids.coverage.
+PACKAGE = os.environ.get("APPFORKIDS_PACKAGE", "be.hershalpandya.appforkids")
+ACTIVITY = f"{PACKAGE}/be.hershalpandya.appforkids.MainActivity"
 HIERARCHY = "/sdcard/appforkids-window.xml"
+# The header control; search upward first because earlier steps often scroll down.
+SWITCH_CHILD = "Changer d’enfant"
 
 
-def adb(*arguments, check=True):
+def adb(*arguments: str | Path, check: bool = True) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["adb", *arguments], capture_output=True, text=True, check=check, timeout=30
     )
 
 
+def stop_app(package: str = PACKAGE) -> None:
+    app_coverage.save(package)
+    adb("shell", "am", "force-stop", package)
+
+
+def restart_app() -> None:
+    stop_app()
+    launched = adb("shell", "am", "start", "-W", "-n", ACTIVITY)
+    if "Status: ok" not in launched.stdout:
+        raise AssertionError(launched.stdout + launched.stderr)
+
+
 def visible_matches(
-    text, package=PACKAGE, *, absent=(), rotation=None, scroll_up_first=False, for_tap=False
-):
+    text: str,
+    package: str = PACKAGE,
+    *,
+    absent: tuple[str, ...] = (),
+    rotation: int | None = None,
+    scroll_up_first: bool = False,
+    for_tap: bool = False,
+) -> list[ET.Element]:
     deadline = time.monotonic() + 20
     last_labels = []
     attempts = 0
@@ -32,17 +57,19 @@ def visible_matches(
             result = adb("exec-out", "cat", HIERARCHY, check=False)
             if result.returncode == 0 and result.stdout.strip().startswith("<?xml"):
                 hierarchy = ET.fromstring(result.stdout)
-                nodes = [
+                nodes = [node for node in hierarchy.iter("node") if node.get("package") == package]
+                matches = [
                     node
-                    for node in hierarchy.iter("node")
-                    if node.get("package") == package
+                    for node in nodes
+                    if node.get("text") == text and node.get("enabled") == "true"
                 ]
-                matches = [node for node in nodes
-                           if node.get("text") == text and node.get("enabled") == "true"]
                 if not matches:
-                    matches = [node for node in nodes
-                               if (node.get("text") or "").casefold() == text.casefold()
-                               and node.get("enabled") == "true"]
+                    matches = [
+                        node
+                        for node in nodes
+                        if (node.get("text") or "").casefold() == text.casefold()
+                        and node.get("enabled") == "true"
+                    ]
                     if len({node.get("text") for node in matches}) > 1:
                         raise AssertionError(f"Ambiguous capitalization for {text!r}")
                 if matches and (rotation is None or hierarchy.get("rotation") == str(rotation)):
@@ -61,66 +88,125 @@ def visible_matches(
                             target = parent
                         targets.append(target if target.get("clickable") == "true" else match)
                     if for_tap:
-                        left, top, right, bottom = map(int, re.findall(r"\d+", targets[0].attrib["bounds"]))
+                        left, top, right, bottom = map(
+                            int, re.findall(r"\d+", targets[0].attrib["bounds"])
+                        )
                         x, y = (left + right) // 2, (top + bottom) // 2
-                        navigation = [node for node in hierarchy.iter("node")
-                                      if node.get("resource-id") == "android:id/navigationBarBackground"]
-                        obscured = any(
+                        navigation = [
+                            node
+                            for node in hierarchy.iter("node")
+                            if node.get("resource-id") == "android:id/navigationBarBackground"
+                        ]
+                        bottom_obscured = any(
                             nl <= x < nr and nt <= y < nb
                             for nl, nt, nr, nb in (
                                 map(int, re.findall(r"\d+", bar.attrib["bounds"]))
                                 for bar in navigation
                             )
                         )
-                        if obscured:
-                            scrollable = targets[0]
-                            while scrollable.get("scrollable") != "true" and scrollable in parents:
-                                scrollable = parents[scrollable]
-                            if scrollable.get("scrollable") != "true":
-                                raise AssertionError(f"Touch control {text!r} is obscured by the navigation bar")
-                            left, top, right, bottom = map(int, re.findall(r"\d+", scrollable.attrib["bounds"]))
+                        window = adb("shell", "dumpsys", "window").stdout
+                        status_bars = re.findall(
+                            r"type=statusBars frame=\[(\d+),(\d+)\]\[(\d+),(\d+)\] visible=true",
+                            window,
+                        )
+                        top_obscured = any(
+                            sl <= x < sr and st <= y < sb
+                            for sl, st, sr, sb in (map(int, frame) for frame in status_bars)
+                        )
+                        if top_obscured or bottom_obscured:
+                            ancestor = targets[0]
+                            while ancestor.get("scrollable") != "true" and ancestor in parents:
+                                ancestor = parents[ancestor]
+                            if ancestor.get("scrollable") != "true":
+                                raise AssertionError(
+                                    f"Touch control {text!r} is obscured by a system bar"
+                                )
+                            left, top, right, bottom = map(
+                                int, re.findall(r"\d+", ancestor.attrib["bounds"])
+                            )
                             height = bottom - top
-                            adb("shell", "input", "swipe", str((left + right) // 2),
-                                str(top + 3 * height // 4), str((left + right) // 2),
-                                str(top + height // 4), "300")
+                            start, end = (
+                                (top + height // 4, top + 3 * height // 4)
+                                if top_obscured
+                                else (top + 3 * height // 4, top + height // 4)
+                            )
+                            adb(
+                                "shell",
+                                "input",
+                                "swipe",
+                                str((left + right) // 2),
+                                str(start),
+                                str((left + right) // 2),
+                                str(end),
+                                "300",
+                            )
                             continue
-                    labels = {node.get("text") for node in nodes}
+                    labels = {node.get("text", "") for node in nodes}
                     if unexpected := labels.intersection(absent):
                         raise AssertionError(f"Unexpected visible labels: {sorted(unexpected)!r}")
                     return targets
                 last_labels = [node.get("text") for node in nodes if node.get("text")]
         # Only scroll an actual scroll container. Swiping outside an open dialog
         # dismisses it, hiding the very control we are waiting for.
-        scrollable = next((node for node in nodes if node.get("scrollable") == "true"), None) if dumped.returncode == 0 and result.returncode == 0 and result.stdout.strip().startswith("<?xml") else None
+        scrollable = (
+            next((node for node in nodes if node.get("scrollable") == "true"), None)
+            if dumped.returncode == 0
+            and result.returncode == 0
+            and result.stdout.strip().startswith("<?xml")
+            else None
+        )
         if scrollable is not None:
             left, top, right, bottom = map(int, re.findall(r"\d+", scrollable.attrib["bounds"]))
             height = bottom - top
             scroll_down = (attempts % 8 < 4) != scroll_up_first
-            start, end = ((top + 3 * height // 4, top + height // 4) if scroll_down
-                          else (top + height // 4, top + 3 * height // 4))
-            adb("shell", "input", "swipe", str((left + right) // 2), str(start),
-                str((left + right) // 2), str(end), "300")
+            start, end = (
+                (top + 3 * height // 4, top + height // 4)
+                if scroll_down
+                else (top + height // 4, top + 3 * height // 4)
+            )
+            adb(
+                "shell",
+                "input",
+                "swipe",
+                str((left + right) // 2),
+                str(start),
+                str((left + right) // 2),
+                str(end),
+                "300",
+            )
         attempts += 1
         time.sleep(0.2)
     raise AssertionError(f"Expected visible text {text!r}. Last app labels: {last_labels!r}")
 
 
-def visible(text, package=PACKAGE, *, absent=(), rotation=None, scroll_up_first=False, for_tap=False):
+def visible(
+    text: str,
+    package: str = PACKAGE,
+    *,
+    absent: tuple[str, ...] = (),
+    rotation: int | None = None,
+    scroll_up_first: bool = False,
+    for_tap: bool = False,
+) -> ET.Element:
     return visible_matches(
-        text, package, absent=absent, rotation=rotation,
-        scroll_up_first=scroll_up_first, for_tap=for_tap
+        text,
+        package,
+        absent=absent,
+        rotation=rotation,
+        scroll_up_first=scroll_up_first,
+        for_tap=for_tap,
     )[0]
 
 
-def tap(text, package=PACKAGE):
-    node = visible(text, package, for_tap=True)
+def tap(text: str, package: str = PACKAGE, *, scroll_up_first: bool = False) -> None:
+    node = visible(text, package, scroll_up_first=scroll_up_first, for_tap=True)
     if node.get("clickable") != "true" and node.get("test-selectable") != "true":
         raise AssertionError(f"Expected a touch control for {text!r}")
     left, top, right, bottom = map(int, re.findall(r"\d+", node.attrib["bounds"]))
     adb("shell", "input", "tap", str((left + right) // 2), str((top + bottom) // 2))
 
 
-def enter_text(value, package=PACKAGE):
+def enter_text(value: str, package: str = PACKAGE) -> None:
     """Focus the visible editor and verify input before submitting its dialog."""
     deadline = time.monotonic() + 20
     tapped = False
@@ -131,10 +217,13 @@ def enter_text(value, package=PACKAGE):
             result = adb("exec-out", "cat", HIERARCHY, check=False)
             if result.returncode == 0 and result.stdout.strip().startswith("<?xml"):
                 hierarchy = ET.fromstring(result.stdout)
-                editors = [node for node in hierarchy.iter("node")
-                           if node.get("package") == package
-                           and node.get("class") == "android.widget.EditText"
-                           and node.get("enabled") == "true"]
+                editors = [
+                    node
+                    for node in hierarchy.iter("node")
+                    if node.get("package") == package
+                    and node.get("class") == "android.widget.EditText"
+                    and node.get("enabled") == "true"
+                ]
                 if len(editors) > 1:
                     raise AssertionError("Expected a single visible text field")
                 if editors:
@@ -144,14 +233,13 @@ def enter_text(value, package=PACKAGE):
                         visible(value, package)
                         return
                     left, top, right, bottom = map(int, re.findall(r"\d+", editor.attrib["bounds"]))
-                    adb("shell", "input", "tap", str((left + right) // 2),
-                        str((top + bottom) // 2))
+                    adb("shell", "input", "tap", str((left + right) // 2), str((top + bottom) // 2))
                     tapped = True
         time.sleep(0.2)
     raise AssertionError("Text field did not become focused")
 
 
-def airplane_mode_is_on():
+def airplane_mode_is_on() -> None:
     result = adb("shell", "settings", "get", "global", "airplane_mode_on").stdout.strip()
     if result != "1":
         raise AssertionError(f"Expected airplane mode to be on, got {result!r}")
@@ -160,11 +248,9 @@ def airplane_mode_is_on():
         raise AssertionError(f"Expected Wi-Fi to be disabled, got {wifi!r}")
 
 
-def play_starter():
+def play_starter() -> None:
     airplane_mode_is_on()
-    launched = adb("shell", "am", "start", "-W", "-S", "-n", f"{PACKAGE}/.MainActivity")
-    if "Status: ok" not in launched.stdout:
-        raise AssertionError(launched.stdout + launched.stderr)
+    restart_app()
     visible("Petits Pas")
     visible("Qui va jouer ?")
     tap("Ajouter un enfant")
@@ -203,7 +289,9 @@ def play_starter():
     tap("Mathématiques")
     tap("Sujet : Tous")
     tap("Compter")
-    visible("Compte des groupes de 1 à 10 étoiles.", absent=("Les mots de même sens", "★ Jeu terminé"))
+    visible(
+        "Compte des groupes de 1 à 10 étoiles.", absent=("Les mots de même sens", "★ Jeu terminé")
+    )
     tap("Les étoiles à compter")
     visible("Exemple : ★ ★ ★ = 3")
     tap("Jouer")
@@ -263,7 +351,7 @@ def play_starter():
     visible("Question 1 sur 3")
     tap("4")
     visible("Bravo, il y a 4 étoiles !")
-    tap("Changer d’enfant")
+    tap(SWITCH_CHILD, scroll_up_first=True)
     tap("Bob")
     visible("Les étoiles à compter", absent=("★ Jeu terminé",))
     tap("Les étoiles à compter")
@@ -277,15 +365,14 @@ def play_starter():
     tap("Terminer")
     tap("Retour au catalogue")
     visible("★ Jeu terminé")
-    # The badge may be below the fold; reveal the header before tapping switch.
     visible("Pour Bob", scroll_up_first=True)
-    tap("Changer d’enfant")
+    tap(SWITCH_CHILD, scroll_up_first=True)
     tap("Alice")
     tap("Effacer les filtres")
     tap("Les mots de même sens")
     tap("Jouer")
     visible("Paires associées : 0 sur 3")
-    adb("shell", "am", "start", "-W", "-S", "-n", f"{PACKAGE}/.MainActivity")
+    restart_app()
     visible("Qui va jouer ?")
     visible("Alice")
     visible("Bob")
@@ -311,7 +398,7 @@ def play_starter():
     tap("Suivant")
     tap("8")
     tap("Terminer")
-    tap("Changer d’enfant")
+    tap(SWITCH_CHILD, scroll_up_first=True)
     tap("Supprimer Bob")
     enter_text("11")
     tap("Vérifier")
@@ -343,10 +430,7 @@ def play_starter():
     airplane_mode_is_on()
 
 
-def main():
-    if len(sys.argv) != 2:
-        raise SystemExit("Usage: smoke_test.py REPORT_DIRECTORY")
-    report_directory = Path(sys.argv[1])
+def run(report_directory: Path) -> int:
     report_directory.mkdir(parents=True, exist_ok=True)
     started = time.monotonic()
     failure = None
@@ -358,11 +442,15 @@ def main():
 
     suite = ET.Element("testsuite", name="APK smoke", tests="1", failures=str(int(bool(failure))))
     case = ET.SubElement(
-        suite, "testcase", name="Pupils switch years and play both starters in airplane mode",
+        suite,
+        "testcase",
+        name="Pupils switch years and play both starters in airplane mode",
         time=f"{time.monotonic() - started:.2f}",
     )
     if failure:
-        ET.SubElement(case, "failure", message="The installed APK failed the UI smoke test").text = failure
+        ET.SubElement(
+            case, "failure", message="The installed APK failed the UI smoke test"
+        ).text = failure
     ET.ElementTree(suite).write(
         report_directory / "starters-smoke.xml", encoding="utf-8", xml_declaration=True
     )
@@ -370,6 +458,12 @@ def main():
         return 1
     print("P1 and P3 offline APK smoke test passed.")
     return 0
+
+
+def main() -> int:
+    if len(sys.argv) != 2:
+        raise SystemExit("Usage: smoke_test.py REPORT_DIRECTORY")
+    return run(Path(sys.argv[1]))
 
 
 if __name__ == "__main__":

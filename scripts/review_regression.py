@@ -4,19 +4,35 @@
 This test replaces the app's private preferences with disposable fixtures. It must
 never be run on a device containing family data. The app remains offline.
 """
+
 import html
 import json
 import tempfile
 
-from smoke_test import PACKAGE, adb, airplane_mode_is_on, enter_text, tap, visible
+from smoke_test import (
+    ACTIVITY,
+    PACKAGE,
+    SWITCH_CHILD,
+    adb,
+    airplane_mode_is_on,
+    enter_text,
+    stop_app,
+    tap,
+    visible,
+)
 
-PREFS = f"/data/user/0/{PACKAGE}/shared_prefs/MainActivity.xml"
+# Activity.getPreferences names the file after getLocalClassName(), which keeps the
+# Java package when the application ID differs from it (as in the coverage build).
+_ACTIVITY_NAME = "be.hershalpandya.appforkids.MainActivity".removeprefix(f"{PACKAGE}.")
+PREFS = f"/data/user/0/{PACKAGE}/shared_prefs/{_ACTIVITY_NAME}.xml"
 
 
-def seed(profiles, results):
-    adb("shell", "am", "force-stop", PACKAGE)
+def seed(profiles: list[dict[str, str]], results: str) -> None:
+    stop_app()
     xml = '<map><string name="children">' + html.escape(json.dumps(profiles), quote=False)
-    xml += '</string><string name="results">' + html.escape(results, quote=False) + '</string></map>'
+    xml += (
+        '</string><string name="results">' + html.escape(results, quote=False) + "</string></map>"
+    )
     with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as fixture:
         fixture.write(xml)
         fixture.flush()
@@ -30,15 +46,15 @@ def seed(profiles, results):
     adb("shell", "chown", owner, PREFS)
     adb("shell", "chmod", "660", PREFS)
     adb("shell", "restorecon", "-R", directory)
-    adb("shell", "am", "start", "-W", "-n", f"{PACKAGE}/.MainActivity")
+    adb("shell", "am", "start", "-W", "-n", ACTIVITY)
 
 
-def parent():
+def parent() -> None:
     enter_text("12")
     tap("Vérifier")
 
 
-def main():
+def main() -> None:
     airplane_mode_is_on()
     if adb("shell", "id", "-u").stdout.strip() != "0":
         raise SystemExit("Run adb root on an isolated emulator before this test")
@@ -47,7 +63,12 @@ def main():
     profiles = [{"id": "a", "name": "I"}, {"id": "b", "name": "ı"}]
     seed(profiles, "{}")
     visible("I")
-    visible("ı", absent=("Impossible de lire les profils. Ferme et rouvre l’application. Les données n’ont pas été remplacées.",))
+    visible(
+        "ı",
+        absent=(
+            "Impossible de lire les profils. Ferme et rouvre l’application. Les données n’ont pas été remplacées.",
+        ),
+    )
     tap("I")
     tap("Année : Toutes")
     tap("P1")
@@ -55,7 +76,7 @@ def main():
     tap("Mathématiques")
     tap("Sujet : Tous")
     tap("Compter")
-    tap("Changer d’enfant")
+    tap(SWITCH_CHILD, scroll_up_first=True)
     try:
         adb("shell", "wm", "user-rotation", "lock", "1")
         visible("Qui va jouer ?", rotation=1)
@@ -67,27 +88,35 @@ def main():
         adb("shell", "wm", "user-rotation", *original)
 
     profiles = [{"id": "a", "name": "Alice"}, {"id": "b", "name": "Bob"}]
-    results = json.dumps({
-        "a": {"compter-les-etoiles": {"revision": 1, "count": 3},
-              "les-mots-de-meme-sens": {"revision": 1, "count": 0}},
-        "b": "damaged",
-    })
+    results = json.dumps(
+        {
+            "a": {
+                "compter-les-etoiles": {"revision": 1, "count": 3},
+                "les-mots-de-meme-sens": {"revision": 1, "count": 0},
+            },
+            "b": "damaged",
+        }
+    )
     seed(profiles, results)
     tap("Alice")
     tap("Réparer les résultats endommagés")
     parent()
-    visible("Les résultats endommagés seront perdus. Les résultats lisibles seront conservés, y compris ceux du même enfant.")
+    visible(
+        "Les résultats endommagés seront perdus. Les résultats lisibles seront conservés, y compris ceux du même enfant."
+    )
     tap("Annuler")
     visible("Réparer les résultats endommagés")
     tap("Réparer les résultats endommagés")
     parent()
     tap("Réparer")
     visible("★ Jeu terminé", absent=("Réparer les résultats endommagés",))
-    tap("Changer d’enfant")
+    tap(SWITCH_CHILD, scroll_up_first=True)
     tap("Supprimer Bob")
     parent()
     tap("Supprimer")
     visible("Alice", absent=("Bob",))
+    tap("Alice")
+    visible("★ Jeu terminé")
 
     seed([{"id": "a", "name": "Alice"}], "{broken")
     tap("Réparer les résultats endommagés")

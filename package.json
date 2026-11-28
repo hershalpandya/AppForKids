@@ -1,0 +1,17 @@
+{
+  "name": "appforkids-quality",
+  "private": true,
+  "scripts": {
+    "prepare": "husky",
+    "typecheck": "python3 -m mypy",
+    "test": "python3 -m coverage erase && python3 -m coverage run scripts/shuffled_tests.py --seed 11 && python3 -m coverage combine && python3 -m coverage report && python3 -m coverage erase && python3 -m coverage run scripts/shuffled_tests.py --seed 29 && python3 -m coverage combine && python3 -m coverage report",
+    "lint:python": "python3 -m ruff check scripts tests && python3 -m ruff format --check scripts tests",
+    "lint:android": "./gradlew :app:lintDebug :app:lintRelease",
+    "lint:java": "bash scripts/format-java.sh --check"
+  },
+  "devDependencies": {
+    "husky": "9.1.7",
+    "lint-staged": "16.2.7",
+    "prettier": "3.10.1"
+  }
+}

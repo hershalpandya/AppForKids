@@ -7,3 +7,10 @@ local.properties
 *.keystore
 *.p12
 __pycache__/
+
+node_modules/
+
+.coverage*
+.venv/
+.ruff_cache/
+.mypy_cache/

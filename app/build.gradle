@@ -1,6 +1,9 @@
 plugins {
     id 'com.android.application' version '8.13.2'
+    id 'jacoco'
 }
+
+def jacocoVersion = '0.8.13'
 
 def customBuildDirectory = providers.gradleProperty('appforkidsReleaseBuildDir')
 if (customBuildDirectory.present) {
@@ -26,6 +29,19 @@ android {
     compileSdk 35
     buildToolsVersion '35.0.0'
 
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        abortOnError true
+        warningsAsErrors true
+        // Upgrade advisories change with available SDK and plugin versions.
+        informational 'OldTargetApi', 'GradleDependency', 'AndroidGradlePluginVersion'
+        baseline file('lint-baseline.xml')
+    }
+
     defaultConfig {
         applicationId 'be.hershalpandya.appforkids'
         minSdk 23
@@ -39,6 +55,7 @@ android {
         main.assets.srcDirs = []
         debug.assets.srcDir 'src/main/assets'
         release.assets.srcDir releaseAssets
+        coverage.assets.srcDir releaseAssets
     }
 
     signingConfigs {
@@ -64,9 +81,69 @@ android {
         release {
             signingConfig signingConfigs.familyOrCi
         }
+        // Release behaviour and assets, instrumented so installed-app tests measure line
+        // coverage. Debug-signed with its own ID: never a family or published artifact.
+        coverage {
+            initWith release
+            applicationIdSuffix '.coverage'
+            signingConfig signingConfigs.debug
+            enableAndroidTestCoverage true
+        }
+    }
+
+    // The Android Gradle plugin instruments only the test build type for coverage.
+    testBuildType 'coverage'
+    testCoverage {
+        jacocoVersion = jacocoVersion
     }
 }
 
-tasks.matching { it.name == 'preReleaseBuild' }.configureEach {
+jacoco {
+    toolVersion = jacocoVersion
+}
+
+tasks.matching { it.name in ['preReleaseBuild', 'preCoverageBuild'] }.configureEach {
     dependsOn prepareReleaseCatalogue
+}
+
+// Execution data pulled from the installed coverage APK by scripts/app_coverage.py.
+def appCoverageData = providers.gradleProperty('appforkidsCoverageData')
+        .map { rootProject.file(it) }
+        .orElse(layout.buildDirectory.dir('outputs/app-coverage').map { it.asFile })
+def coverageClasses = layout.buildDirectory.dir(
+        'intermediates/javac/coverage/compileCoverageJavaWithJavac/classes').map {
+    fileTree(it) {
+        include 'be/hershalpandya/appforkids/**'
+        exclude '**/BuildConfig.class', '**/R.class', '**/R$*.class', '**/CoverageDumpReceiver*.class'
+    }
+}
+
+def configureAppCoverage = { task ->
+    task.dependsOn 'compileCoverageJavaWithJavac'
+    task.classDirectories.from(coverageClasses)
+    task.sourceDirectories.from(file('src/main/java'))
+    task.executionData.from(appCoverageData.map { fileTree(it) { include '*.ec' } })
+}
+
+tasks.register('appCoverageReport', JacocoReport) {
+    description = 'Reports line coverage from installed-app test runs of the coverage APK.'
+    configureAppCoverage(it)
+    reports {
+        xml.required = true
+        html.required = true
+    }
+}
+
+tasks.register('appCoverageVerification', JacocoCoverageVerification) {
+    description = 'Fails below 70% line coverage of the app code exercised by installed-app tests.'
+    configureAppCoverage(it)
+    violationRules {
+        rule {
+            limit {
+                counter = 'LINE'
+                value = 'COVEREDRATIO'
+                minimum = 0.70
+            }
+        }
+    }
 }

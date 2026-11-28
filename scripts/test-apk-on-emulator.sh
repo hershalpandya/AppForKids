@@ -105,10 +105,17 @@ if ! timeout 90s bash -c '
     echo "Could not obtain a root adb connection on the disposable emulator within 90 seconds." >&2
     exit 1
 fi
-python3 scripts/review_regression.py 2>&1 | tee "$reports/review-regression.log"
-# The regression fixtures are disposable and must not influence the normal flow.
-adb shell pm clear be.hershalpandya.appforkids
-python3 scripts/smoke_test.py "$reports"
+if [[ -n "${APPFORKIDS_SUITE_SEED:-}" ]]; then
+    # Independent suites from cleared data, in a reproducible shuffled order.
+    python3 scripts/installed_suites.py --seed "$APPFORKIDS_SUITE_SEED" "$reports" \
+        2>&1 | tee "$reports/installed-suites.log"
+else
+    python3 scripts/review_regression.py 2>&1 | tee "$reports/review-regression.log"
+    # The regression fixtures are disposable and must not influence the normal flow.
+    adb shell pm clear "${APPFORKIDS_PACKAGE:-be.hershalpandya.appforkids}"
+    # The update check below verifies that this run's saved progress survives.
+    python3 scripts/smoke_test.py "$reports"
+fi
 
 if [[ -n "$preview_apk" ]]; then
     adb install "$preview_apk" 2>&1 | tee "$reports/preview-install.log"

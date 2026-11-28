@@ -19,7 +19,7 @@ P1_FIXTURE = FIXTURES / "les-jetons-a-reunir.json"
 P3_FIXTURE = FIXTURES / "les-mots-classifies.json"
 
 
-def play_p1_worksheet():
+def play_p1_worksheet() -> None:
     airplane_mode_is_on()
     subprocess.run(["bash", "scripts/preview-worksheet.sh", str(P1_FIXTURE)], check=True)
     see = partial(visible, package=PACKAGE)
@@ -44,9 +44,15 @@ def play_p1_worksheet():
         hierarchy = ET.fromstring(adb("exec-out", "cat", window).stdout)
         nodes = list(hierarchy.iter("node"))
         game = next(node for node in nodes if node.get("text") == "Les jetons à réunir")
-        bar = next(node for node in nodes if node.get("resource-id") == "android:id/navigationBarBackground")
+        bar = next(
+            node
+            for node in nodes
+            if node.get("resource-id") == "android:id/navigationBarBackground"
+        )
         left, top, right, bottom = map(int, re.findall(r"\d+", game.attrib["bounds"]))
-        nav_left, nav_top, nav_right, nav_bottom = map(int, re.findall(r"\d+", bar.attrib["bounds"]))
+        nav_left, nav_top, nav_right, nav_bottom = map(
+            int, re.findall(r"\d+", bar.attrib["bounds"])
+        )
         x, y = (left + right) // 2, (top + bottom) // 2
         if nav_left <= x < nav_right and nav_top <= y < nav_bottom:
             break
@@ -80,7 +86,7 @@ def play_p1_worksheet():
     airplane_mode_is_on()
 
 
-def play_p3_worksheet():
+def play_p3_worksheet() -> None:
     airplane_mode_is_on()
     subprocess.run(["bash", "scripts/preview-worksheet.sh", str(P3_FIXTURE)], check=True)
     see = partial(visible, package=PACKAGE)
@@ -100,8 +106,8 @@ def play_p3_worksheet():
     touch("Les mots de même sens")
     touch("Jouer")
     touch("content")
-    source_x = int(re.match(r"\[(\d+),", see("content").attrib["bounds"])[1])
-    answer_x = int(re.match(r"\[(\d+),", see("heureux").attrib["bounds"])[1])
+    source_x = int(see("content").attrib["bounds"].split(",", 1)[0][1:])
+    answer_x = int(see("heureux").attrib["bounds"].split(",", 1)[0][1:])
     if source_x >= answer_x:
         raise AssertionError("The source words must be in the physical left column")
     touch("heureux")
@@ -131,25 +137,37 @@ def play_p3_worksheet():
     airplane_mode_is_on()
 
 
-def verify_release_isolation(apk):
+def verify_release_isolation(apk: str) -> None:
     # Inspect the exact signed artifact installed by the release smoke test.
     with ZipFile(apk) as archive:
         entries = archive.namelist()
         catalogue = "assets/games/catalogue.json"
         bundled_games = json.loads(archive.read(catalogue))["games"]
-        expected_assets = {"assets/classification-v1.json", catalogue, *(f"assets/games/{game}" for game in bundled_games)}
+        expected_assets = {
+            "assets/classification-v1.json",
+            catalogue,
+            *(f"assets/games/{game}" for game in bundled_games),
+        }
         actual_assets = {entry for entry in entries if entry.startswith("assets/")}
-        if actual_assets != expected_assets or {P1_FIXTURE.name, P3_FIXTURE.name}.intersection(bundled_games):
+        if actual_assets != expected_assets or {P1_FIXTURE.name, P3_FIXTURE.name}.intersection(
+            bundled_games
+        ):
             raise AssertionError(f"Unexpected release assets: {sorted(actual_assets)}")
         for entry in entries:
-            if entry.startswith("classes") and entry.endswith(".dex"):
-                if b"worksheet-draft.json" in archive.read(entry):
-                    raise AssertionError("Release APK can still load the preview draft")
+            if (
+                entry.startswith("classes")
+                and entry.endswith(".dex")
+                and b"worksheet-draft.json" in archive.read(entry)
+            ):
+                raise AssertionError("Release APK can still load the preview draft")
 
     result = adb("shell", "run-as", RELEASE_PACKAGE, "id", check=False)
     if result.returncode == 0 or "package not debuggable" not in result.stdout + result.stderr:
-        raise AssertionError("Expected the installed release APK to refuse draft injection: "
-                             + result.stdout + result.stderr)
+        raise AssertionError(
+            "Expected the installed release APK to refuse draft injection: "
+            + result.stdout
+            + result.stderr
+        )
 
 
 if __name__ == "__main__":

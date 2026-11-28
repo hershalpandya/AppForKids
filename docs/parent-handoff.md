@@ -5,7 +5,7 @@ Use this guide to make a game from schoolwork, review it on your computer and in
 ## Set up the computer once
 
 1. Open the [AppForKids repository](https://github.com/hershalpandya/AppForKids) and clone it to your computer or open your existing checkout. Start a coding-agent session in that folder.
-2. Install Python 3, JDK 17 and Android Studio. In Android Studio’s SDK Manager, install **Android SDK Command-line Tools (latest)** and note the **Android SDK Location**. The examples below use Bash. Run `bash` if your terminal uses another shell, and run the commands from the AppForKids folder. [Android Studio setup](https://developer.android.com/studio/install)
+2. Install Python 3.10 or newer, JDK 17 and Android Studio. Verify with `python3 --version`. In Android Studio’s SDK Manager, install **Android SDK Command-line Tools (latest)** and note the **Android SDK Location**. The examples below use Bash. Run `bash` if your terminal uses another shell, and run the commands from the AppForKids folder. [Android Studio setup](https://developer.android.com/studio/install)
 3. Set `JAVA_HOME` to JDK 17 and `ANDROID_HOME` to your SDK location. The paths below are the macOS example. Reuse these settings when you open a new terminal.
 
 ```bash
