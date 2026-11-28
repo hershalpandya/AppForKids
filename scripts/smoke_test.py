@@ -19,7 +19,9 @@ def adb(*arguments, check=True):
     )
 
 
-def visible_matches(text, package=PACKAGE, *, absent=(), rotation=None, scroll_up_first=False):
+def visible_matches(
+    text, package=PACKAGE, *, absent=(), rotation=None, scroll_up_first=False, for_tap=False
+):
     deadline = time.monotonic() + 20
     last_labels = []
     attempts = 0
@@ -58,6 +60,30 @@ def visible_matches(text, package=PACKAGE, *, absent=(), rotation=None, scroll_u
                                 break
                             target = parent
                         targets.append(target if target.get("clickable") == "true" else match)
+                    if for_tap:
+                        left, top, right, bottom = map(int, re.findall(r"\d+", targets[0].attrib["bounds"]))
+                        x, y = (left + right) // 2, (top + bottom) // 2
+                        navigation = [node for node in hierarchy.iter("node")
+                                      if node.get("resource-id") == "android:id/navigationBarBackground"]
+                        obscured = any(
+                            nl <= x < nr and nt <= y < nb
+                            for nl, nt, nr, nb in (
+                                map(int, re.findall(r"\d+", bar.attrib["bounds"]))
+                                for bar in navigation
+                            )
+                        )
+                        if obscured:
+                            scrollable = targets[0]
+                            while scrollable.get("scrollable") != "true" and scrollable in parents:
+                                scrollable = parents[scrollable]
+                            if scrollable.get("scrollable") != "true":
+                                raise AssertionError(f"Touch control {text!r} is obscured by the navigation bar")
+                            left, top, right, bottom = map(int, re.findall(r"\d+", scrollable.attrib["bounds"]))
+                            height = bottom - top
+                            adb("shell", "input", "swipe", str((left + right) // 2),
+                                str(top + 3 * height // 4), str((left + right) // 2),
+                                str(top + height // 4), "300")
+                            continue
                     labels = {node.get("text") for node in nodes}
                     if unexpected := labels.intersection(absent):
                         raise AssertionError(f"Unexpected visible labels: {sorted(unexpected)!r}")
@@ -79,14 +105,15 @@ def visible_matches(text, package=PACKAGE, *, absent=(), rotation=None, scroll_u
     raise AssertionError(f"Expected visible text {text!r}. Last app labels: {last_labels!r}")
 
 
-def visible(text, package=PACKAGE, *, absent=(), rotation=None, scroll_up_first=False):
+def visible(text, package=PACKAGE, *, absent=(), rotation=None, scroll_up_first=False, for_tap=False):
     return visible_matches(
-        text, package, absent=absent, rotation=rotation, scroll_up_first=scroll_up_first
+        text, package, absent=absent, rotation=rotation,
+        scroll_up_first=scroll_up_first, for_tap=for_tap
     )[0]
 
 
 def tap(text, package=PACKAGE):
-    node = visible(text, package)
+    node = visible(text, package, for_tap=True)
     if node.get("clickable") != "true" and node.get("test-selectable") != "true":
         raise AssertionError(f"Expected a touch control for {text!r}")
     left, top, right, bottom = map(int, re.findall(r"\d+", node.attrib["bounds"]))

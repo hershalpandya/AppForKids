@@ -5,6 +5,7 @@ import json
 import re
 import subprocess
 import sys
+import xml.etree.ElementTree as ET
 from functools import partial
 from pathlib import Path
 from zipfile import ZipFile
@@ -35,6 +36,25 @@ def play_p1_worksheet():
     touch("Mathématiques")
     see("Les étoiles à compter", absent=("Les jetons à réunir",))
     touch("Effacer les filtres")
+    # Place the game's tap point under the taskbar, as in the failed tablet run.
+    for _ in range(5):
+        see("Les jetons à réunir")
+        window = "/sdcard/appforkids-preview-regression.xml"
+        adb("shell", "uiautomator", "dump", window)
+        hierarchy = ET.fromstring(adb("exec-out", "cat", window).stdout)
+        nodes = list(hierarchy.iter("node"))
+        game = next(node for node in nodes if node.get("text") == "Les jetons à réunir")
+        bar = next(node for node in nodes if node.get("resource-id") == "android:id/navigationBarBackground")
+        left, top, right, bottom = map(int, re.findall(r"\d+", game.attrib["bounds"]))
+        nav_left, nav_top, nav_right, nav_bottom = map(int, re.findall(r"\d+", bar.attrib["bounds"]))
+        x, y = (left + right) // 2, (top + bottom) // 2
+        if nav_left <= x < nav_right and nav_top <= y < nav_bottom:
+            break
+        start = nav_top // 3
+        end = min(start + nav_top - y + 20, nav_top * 3 // 4)
+        adb("shell", "input", "swipe", str(x), str(start), str(x), str(end), "500")
+    else:
+        raise AssertionError("Could not position the worksheet button under the taskbar")
     touch("Les jetons à réunir")
     see("Exemple : ● ● et ● font 3 jetons.")
     touch("Jouer")
